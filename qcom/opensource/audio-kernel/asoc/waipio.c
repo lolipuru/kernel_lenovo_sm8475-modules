@@ -951,6 +951,44 @@ static struct snd_soc_dai_link msm_va_cdc_dma_be_dai_links[] = {
 	},
 };
 
+#if defined(CONFIG_CIRRUS_CS35L45)
+#define CIRRUS_AMP_SLCK_RATE 1536000
+
+int cs35l45_snd_startup(struct snd_pcm_substream *substream)
+{
+	int ret = 0, i = 0;
+	struct snd_soc_pcm_runtime *rtd = substream->private_data;
+	struct snd_soc_card *card = rtd->card;
+	struct snd_soc_dai *codec_dai;
+
+	ret = msm_common_snd_startup(substream);
+	if (ret) {
+		dev_err(card->dev, "%s: Failed to startup. error %d\n",
+			__func__, ret);
+		return ret;
+	}
+
+	for_each_rtd_codec_dais(rtd, i, codec_dai) {
+		ret = snd_soc_dai_set_sysclk(codec_dai, 0, CIRRUS_AMP_SLCK_RATE,
+			SND_SOC_CLOCK_IN);
+		if (ret) {
+			dev_err(card->dev, "%s: Failed to set dai sycclk, error %d\n", __func__, ret);
+			return ret;
+		}
+	}
+	dev_info(card->dev, "%s success\n", __func__);
+
+ return ret;
+}
+
+static struct snd_soc_ops cs35l45_be_ops = {
+	.startup = cs35l45_snd_startup,
+	.hw_params = msm_common_snd_hw_params,
+	.shutdown = msm_common_snd_shutdown,
+};
+
+#endif /* CONFIG_CIRRUS_CS35L45 */
+
 /*
  * I2S interface pinctrl mapping
  * ------------------------------------
@@ -969,7 +1007,11 @@ static struct snd_soc_dai_link msm_mi2s_dai_links[] = {
 		.playback_only = 1,
 		.trigger = {SND_SOC_DPCM_TRIGGER_POST,
 			SND_SOC_DPCM_TRIGGER_POST},
+#if defined(CONFIG_CIRRUS_CS35L45)
+		.ops = &cs35l45_be_ops,
+#else
 		.ops = &msm_common_be_ops,
+#endif
 		.ignore_suspend = 1,
 		.ignore_pmdown_time = 1,
 		SND_SOC_DAILINK_REG(pri_mi2s_rx),
@@ -980,7 +1022,11 @@ static struct snd_soc_dai_link msm_mi2s_dai_links[] = {
 		.capture_only = 1,
 		.trigger = {SND_SOC_DPCM_TRIGGER_POST,
 			SND_SOC_DPCM_TRIGGER_POST},
+#if defined(CONFIG_CIRRUS_CS35L45)
+		.ops = &cs35l45_be_ops,
+#else
 		.ops = &msm_common_be_ops,
+#endif
 		.ignore_suspend = 1,
 		SND_SOC_DAILINK_REG(pri_mi2s_tx),
 	},
