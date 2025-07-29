@@ -22,7 +22,9 @@
 #include "wcd-mbhc-adc.h"
 #include <asoc/wcd-mbhc-v2.h>
 #include <asoc/pdata.h>
-
+#ifdef CONFIG_QCOM_FSA4480_I2C
+  extern struct mutex audio_detect_completed_mutex;
+#endif
 #define WCD_MBHC_ADC_HS_THRESHOLD_MV    1700
 #define WCD_MBHC_ADC_HPH_THRESHOLD_MV   75
 #define WCD_MBHC_ADC_MICBIAS_MV         1800
@@ -668,7 +670,9 @@ static void wcd_correct_swch_plug(struct work_struct *work)
 	int hs_threshold, micbias_mv;
 
 	pr_debug("%s: enter\n", __func__);
-
+#ifdef CONFIG_QCOM_FSA4480_I2C
+  	mutex_lock(&audio_detect_completed_mutex);
+#endif
 	mbhc = container_of(work, struct wcd_mbhc, correct_plug_swch);
 	component = mbhc->component;
 
@@ -983,6 +987,9 @@ exit:
 		mbhc->mbhc_cb->hph_pull_down_ctrl(component, true);
 
 	mbhc->mbhc_cb->lock_sleep(mbhc, false);
+#ifdef CONFIG_QCOM_FSA4480_I2C
+  	mutex_unlock(&audio_detect_completed_mutex);
+#endif
 	pr_debug("%s: leave\n", __func__);
 }
 

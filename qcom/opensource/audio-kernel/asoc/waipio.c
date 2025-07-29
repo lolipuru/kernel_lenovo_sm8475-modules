@@ -136,14 +136,18 @@ static struct wcd_mbhc_config wcd_mbhc_cfg = {
 
 static bool msm_usbc_swap_gnd_mic(struct snd_soc_component *component, bool active)
 {
+	int ret = 0;
 	struct snd_soc_card *card = component->card;
 	struct msm_asoc_mach_data *pdata =
 				snd_soc_card_get_drvdata(card);
 
 	if (!pdata->fsa_handle)
 		return false;
-
-	return fsa4480_switch_event(pdata->fsa_handle, FSA_MIC_GND_SWAP);
+	if(audio_switch_C1_enable)
+		ret = fsa4480_switch_event(pdata->fsa_handle, FSA_MIC_GND_SWAP);
+	if(audio_switch_C2_enable)
+		ret += fsa4480_switch_event_2(pdata->fsa_handle_2, FSA_MIC_GND_SWAP);
+	return ret;
 }
 
 static void msm_parse_upd_configuration(struct platform_device *pdev,
@@ -2336,6 +2340,12 @@ static int msm_asoc_machine_probe(struct platform_device *pdev)
 	if (!pdata->fsa_handle)
 		dev_dbg(&pdev->dev, "property %s not detected in node %s\n",
 			"fsa4480-i2c-handle", pdev->dev.of_node->full_name);
+
+	pdata->fsa_handle_2 = of_parse_phandle(pdev->dev.of_node,
+					"fsa4480-i2c-handle-sub", 0);
+	if (!pdata->fsa_handle_2)
+		dev_dbg(&pdev->dev, "property %s not detected in node %s\n",
+			"fsa4480-i2c-handle-sub", pdev->dev.of_node->full_name);
 
 	pdata->dmic01_gpio_p = of_parse_phandle(pdev->dev.of_node,
 					      "qcom,cdc-dmic01-gpios",

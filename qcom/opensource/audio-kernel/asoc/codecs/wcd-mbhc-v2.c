@@ -697,7 +697,10 @@ void wcd_mbhc_report_plug(struct wcd_mbhc *mbhc, int insertion,
 		if (mbhc->current_plug == MBHC_PLUG_TYPE_HEADSET &&
 			jack_type == SND_JACK_HEADPHONE)
 			mbhc->hph_status &= ~SND_JACK_HEADSET;
-
+#ifdef CONFIG_QCOM_FSA4480_I2C
+  		if(audio_4480_headset_ref == 2)
+  			mbhc->hph_status &= ~SND_JACK_HEADSET;
+#endif
 		/* Report insertion */
 		if (jack_type == SND_JACK_HEADPHONE)
 			mbhc->current_plug = MBHC_PLUG_TYPE_HEADPHONE;
@@ -706,6 +709,12 @@ void wcd_mbhc_report_plug(struct wcd_mbhc *mbhc, int insertion,
 			mbhc->current_plug = MBHC_PLUG_TYPE_GND_MIC_SWAP;
 #endif /* CONFIG_AUDIO_QGKI */
 		else if (jack_type == SND_JACK_HEADSET) {
+#ifdef CONFIG_QCOM_FSA4480_I2C
+  			if(audio_4480_headset_ref == 2)
+  				mbhc->current_plug = MBHC_PLUG_TYPE_HEADPHONE;
+  				//mbhc->current_plug = MBHC_PLUG_TYPE_HEADSET;
+  			else
+#endif
 			mbhc->current_plug = MBHC_PLUG_TYPE_HEADSET;
 			mbhc->jiffies_atreport = jiffies;
 		} else if (jack_type == SND_JACK_LINEOUT)
@@ -754,6 +763,7 @@ void wcd_mbhc_report_plug(struct wcd_mbhc *mbhc, int insertion,
 				pr_debug("%s: Marking jack type as SND_JACK_LINEOUT\n",
 				__func__);
 			}
+			printk("%s: headphone impedance left(%d) right(%d)\n", __func__,mbhc->zl, mbhc->zr);
 		}
 
 		/* Do not calculate impedance again for lineout
@@ -793,6 +803,7 @@ void wcd_mbhc_report_plug(struct wcd_mbhc *mbhc, int insertion,
 				    WCD_MBHC_JACK_MASK);
 		wcd_mbhc_clr_and_turnon_hph_padac(mbhc);
 	}
+	printk("%s: Reporting %s %d(%x)\n", __func__,insertion ? "insertion":"removal",jack_type, mbhc->hph_status);
 	pr_debug("%s: leave hph_status %x\n", __func__, mbhc->hph_status);
 }
 EXPORT_SYMBOL(wcd_mbhc_report_plug);
@@ -810,7 +821,8 @@ void wcd_mbhc_elec_hs_report_unplug(struct wcd_mbhc *mbhc)
 		pr_info("%s: hs_detect_plug work not cancelled\n", __func__);
 
 	pr_debug("%s: Report extension cable\n", __func__);
-
+	wcd_mbhc_report_plug(mbhc, 1, SND_JACK_LINEOUT);
+	extcon_set_state_sync(mbhc->extdev, EXTCON_JACK_LINE_OUT, 1);
 	/*
 	 * If PA is enabled HPHL schmitt trigger can
 	 * be unreliable, make sure to disable it
@@ -884,7 +896,10 @@ void wcd_mbhc_find_plug_and_report(struct wcd_mbhc *mbhc,
 			anc_mic_found =
 			mbhc->mbhc_fn->wcd_mbhc_detect_anc_plug_type(mbhc);
 		jack_type = SND_JACK_HEADSET;
-
+#ifdef CONFIG_QCOM_FSA4480_I2C
+  		if(audio_4480_headset_ref == 2)
+  			jack_type = SND_JACK_HEADPHONE;
+#endif
 		/*
 		 * If Headphone was reported previously, this will
 		 * only report the mic line
@@ -1135,7 +1150,9 @@ static irqreturn_t wcd_mbhc_mech_plug_detect_irq(int irq, void *data)
 	int r = IRQ_HANDLED;
 	struct wcd_mbhc *mbhc = data;
 
-	pr_debug("%s: enter\n", __func__);
+#ifdef CONFIG_QCOM_FSA4480_I2C
+  	pr_err("%s: enter headset num %d\n", __func__,audio_4480_headset_ref);
+#endif
 	if (mbhc == NULL) {
 		pr_err("%s: NULL irq data\n", __func__);
 		return IRQ_NONE;
@@ -1182,6 +1199,7 @@ int wcd_mbhc_get_button_mask(struct wcd_mbhc *mbhc)
 		break;
 	}
 
+        pr_debug("%s: btn = %d\n", __func__,btn);
 	return mask;
 }
 EXPORT_SYMBOL(wcd_mbhc_get_button_mask);
@@ -1340,6 +1358,7 @@ static irqreturn_t wcd_mbhc_release_handler(int irq, void *data)
 						0, mbhc->buttons_pressed);
 			}
 		}
+		printk("%s: Reporting %s button(0x%x) release event\n",__func__,ret?" ":"long",mbhc->buttons_pressed);
 		mbhc->buttons_pressed &= ~WCD_MBHC_JACK_BUTTON_MASK;
 	}
 exit:
@@ -1491,7 +1510,8 @@ static int wcd_mbhc_initialise(struct wcd_mbhc *mbhc)
 
 	if (mbhc->mbhc_cfg->enable_usbc_analog) {
 		/* Insertion debounce set to 48ms */
-		WCD_MBHC_REG_UPDATE_BITS(WCD_MBHC_INSREM_DBNC, 4);
+		WCD_MBHC_REG_UPDATE_BITS(WCD_MBHC_INSREM_DBNC, 0x6);
+                pr_err("%s: line = %d Insertion debounce set 0x6", __func__,__LINE__);
 	} else {
 		/* Insertion debounce set to 96ms */
 		WCD_MBHC_REG_UPDATE_BITS(WCD_MBHC_INSREM_DBNC, 6);
@@ -1664,11 +1684,52 @@ static int wcd_mbhc_usbc_ana_event_handler(struct notifier_block *nb,
 					   unsigned long mode, void *ptr)
 {
 	struct wcd_mbhc *mbhc = container_of(nb, struct wcd_mbhc, fsa_nb);
+#ifdef CONFIG_QCOM_FSA4480_I2C
+	char *env1[]= {"handset-mic",NULL};
+	char *env2[]= {"headset-mic",NULL};
+  	pr_err("headset_analog_num before %d",audio_4480_headset_ref);
+#endif
 
+#ifdef CONFIG_QCOM_FSA4480_I2C
+  	if(audio_4480_headset_ref == 2){
+  		dev_err(mbhc->component->dev,"main analog headsetmic switch to handset-mic");
+  		kobject_uevent_env(&mbhc->component->dev->kobj,KOBJ_CHANGE,env1);
+  	}else if(audio_4480_headset_ref == 1){
+  		dev_err(mbhc->component->dev,"main analog headsetmic switch to  headsetmic");
+  		kobject_uevent_env(&mbhc->component->dev->kobj,KOBJ_CHANGE,env2);
+  	}
+#endif
+	dev_err(mbhc->component->dev, "%s: mode = %lu\n", __func__, mode);
+
+	if (mode == TYPEC_ACCESSORY_AUDIO) {
+		if (mbhc->mbhc_cb->clk_setup)
+			mbhc->mbhc_cb->clk_setup(mbhc->component, true);
+		/* insertion detected, enable L_DET_EN */
+		WCD_MBHC_REG_UPDATE_BITS(WCD_MBHC_L_DET_EN, 1);
+	}
+	return 0;
+}
+static int wcd_mbhc_usbc_ana_event_handler_2(struct notifier_block *nb,
+					   unsigned long mode, void *ptr)
+{
+	struct wcd_mbhc *mbhc = container_of(nb, struct wcd_mbhc, fsa_nb_2);
+#ifdef CONFIG_QCOM_FSA4480_I2C
+	char *env1[]= {"handset-mic",NULL};
+	char *env2[]= {"headset-mic",NULL};
+  	pr_err("headset_analog_num before %d",audio_4480_headset_ref);
+#endif
 	if (!mbhc)
 		return -EINVAL;
-
-	dev_dbg(mbhc->component->dev, "%s: mode = %lu\n", __func__, mode);
+#ifdef CONFIG_QCOM_FSA4480_I2C
+  	if(audio_4480_headset_ref == 2){
+  		dev_err(mbhc->component->dev,"main analog headsetmic switch to handset-mic");
+  		kobject_uevent_env(&mbhc->component->dev->kobj,KOBJ_CHANGE,env1);
+  	}else if(audio_4480_headset_ref == 1){
+  		dev_err(mbhc->component->dev,"main analog headsetmic switch to  headsetmic");
+  		kobject_uevent_env(&mbhc->component->dev->kobj,KOBJ_CHANGE,env2);
+  	}
+#endif
+	dev_err(mbhc->component->dev, "%s: mode = %lu\n", __func__, mode);
 
 	if (mode == TYPEC_ACCESSORY_AUDIO) {
 		if (mbhc->mbhc_cb->clk_setup)
@@ -1684,6 +1745,11 @@ static int wcd_mbhc_usbc_ana_event_handler(struct notifier_block *nb,
 {
 	return 0;
 }
+static int wcd_mbhc_usbc_ana_event_handler_2(struct notifier_block *nb,
+					   unsigned long mode, void *ptr)
+{
+	return 0;
+}
 #endif
 
 int wcd_mbhc_start(struct wcd_mbhc *mbhc, struct wcd_mbhc_config *mbhc_cfg)
@@ -1692,6 +1758,7 @@ int wcd_mbhc_start(struct wcd_mbhc *mbhc, struct wcd_mbhc_config *mbhc_cfg)
 	struct snd_soc_component *component;
 	struct snd_soc_card *card;
 	const char *usb_c_dt = "qcom,msm-mbhc-usbc-audio-supported";
+	const char *usb_c_dt_sub = "qcom,msm-mbhc-usbc-audio-supported-sub";
 
 	if (!mbhc || !mbhc_cfg)
 		return -EINVAL;
@@ -1718,6 +1785,19 @@ int wcd_mbhc_start(struct wcd_mbhc *mbhc, struct wcd_mbhc_config *mbhc_cfg)
 			"%s: skipping USB c analog configuration\n", __func__);
 	}
 
+	/* check if USB C analog is defined on device tree */
+	mbhc_cfg->enable_usbc_analog_2 = 0;
+	if (of_find_property(card->dev->of_node, usb_c_dt_sub, NULL)) {
+		rc = of_property_read_u32(card->dev->of_node, usb_c_dt_sub,
+				&mbhc_cfg->enable_usbc_analog_2);
+	}
+	if (mbhc_cfg->enable_usbc_analog_2 == 0 || rc != 0) {
+		dev_dbg(card->dev,
+				"%s: %s in dt node is missing or false\n",
+				__func__, usb_c_dt);
+		dev_dbg(card->dev,
+			"%s: skipping USB c analog configuration\n", __func__);
+	}
 	/* Parse fsa switch handle */
 	if (mbhc_cfg->enable_usbc_analog) {
 		dev_dbg(mbhc->component->dev, "%s: usbc analog enabled\n",
@@ -1727,6 +1807,20 @@ int wcd_mbhc_start(struct wcd_mbhc *mbhc, struct wcd_mbhc_config *mbhc_cfg)
 				"fsa4480-i2c-handle", 0);
 		if (!mbhc->fsa_np) {
 			dev_err(card->dev, "%s: fsa4480 i2c node not found\n",
+				__func__);
+			rc = -EINVAL;
+			goto err;
+		}
+	}
+	/* Parse fsa switch handle */
+	if (mbhc_cfg->enable_usbc_analog_2) {
+		dev_dbg(mbhc->component->dev, "%s: usbc analog sub enabled\n",
+				__func__);
+		mbhc->swap_thr = GND_MIC_USBC_SWAP_THRESHOLD;
+		mbhc->fsa_np_2 = of_parse_phandle(card->dev->of_node,
+				"fsa4480-i2c-handle-sub", 0);
+		if (!mbhc->fsa_np_2) {
+			dev_err(card->dev, "%s: fsa4480 i2c sub node not found\n",
 				__func__);
 			rc = -EINVAL;
 			goto err;
@@ -1758,7 +1852,15 @@ int wcd_mbhc_start(struct wcd_mbhc *mbhc, struct wcd_mbhc_config *mbhc_cfg)
 	if (mbhc_cfg->enable_usbc_analog) {
 		mbhc->fsa_nb.notifier_call = wcd_mbhc_usbc_ana_event_handler;
 		mbhc->fsa_nb.priority = 0;
+#ifdef CONFIG_QCOM_FSA4480_I2C
+  		audio_boot_flag=true;
+#endif
 		rc = fsa4480_reg_notifier(&mbhc->fsa_nb, mbhc->fsa_np);
+	}
+	if (mbhc_cfg->enable_usbc_analog_2) {
+		mbhc->fsa_nb_2.notifier_call = wcd_mbhc_usbc_ana_event_handler_2;
+		mbhc->fsa_nb_2.priority = 0;
+		rc = fsa4480_reg_notifier_2(&mbhc->fsa_nb_2, mbhc->fsa_np_2);
 	}
 
 	return rc;
@@ -1796,6 +1898,8 @@ void wcd_mbhc_stop(struct wcd_mbhc *mbhc)
 
 	if (mbhc->mbhc_cfg->enable_usbc_analog)
 		fsa4480_unreg_notifier(&mbhc->fsa_nb, mbhc->fsa_np);
+	if (mbhc->mbhc_cfg->enable_usbc_analog_2)
+		fsa4480_unreg_notifier_2(&mbhc->fsa_nb_2, mbhc->fsa_np_2);
 
 	pr_debug("%s: leave\n", __func__);
 }
