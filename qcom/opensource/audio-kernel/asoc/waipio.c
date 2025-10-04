@@ -82,6 +82,7 @@ struct msm_asoc_mach_data {
 	struct pinctrl *usbc_en2_gpio_p; /* used by pinctrl API */
 	bool is_afe_config_done;
 	struct device_node *fsa_handle;
+	struct device_node *fsa_handle_2;
 	struct clk *lpass_audio_hw_vote;
 	int core_audio_vote_count;
 	u32 wsa_max_devs;
@@ -136,6 +137,7 @@ static struct wcd_mbhc_config wcd_mbhc_cfg = {
 
 static bool msm_usbc_swap_gnd_mic(struct snd_soc_component *component, bool active)
 {
+	int ret = 0;
 	struct snd_soc_card *card = component->card;
 	struct msm_asoc_mach_data *pdata =
 				snd_soc_card_get_drvdata(card);
@@ -143,7 +145,11 @@ static bool msm_usbc_swap_gnd_mic(struct snd_soc_component *component, bool acti
 	if (!pdata->fsa_handle)
 		return false;
 
-	return fsa4480_switch_event(pdata->fsa_handle, FSA_MIC_GND_SWAP);
+	if(audio_switch_C1_enable)
+		ret = fsa4480_switch_event(pdata->fsa_handle, FSA_MIC_GND_SWAP);
+	if(audio_switch_C2_enable)
+		ret += fsa4480_switch_event_2(pdata->fsa_handle_2, FSA_MIC_GND_SWAP);
+	return ret;
 }
 
 static void msm_parse_upd_configuration(struct platform_device *pdev,
@@ -642,6 +648,7 @@ static struct snd_soc_dai_link msm_hac_wsa_cdc_dma_be_dai_links[] = {
 		.ops = &msm_common_be_ops,
 		SND_SOC_DAILINK_REG(wsa_dma_tx1),
 	},
+#if 0
 	{
 		.name = LPASS_BE_WSA_CDC_DMA_TX_0,
 		.stream_name = LPASS_BE_WSA_CDC_DMA_TX_0,
@@ -697,6 +704,7 @@ static struct snd_soc_dai_link msm_wsa_cdc_dma_be_dai_links[] = {
 		/* .no_host_mode = SND_SOC_DAI_LINK_NO_HOST, */
 		SND_SOC_DAILINK_REG(vi_feedback),
 	},
+#endif
 	{
 		.name = LPASS_BE_WSA_CDC_DMA_RX_0_VIRT,
 		.stream_name = LPASS_BE_WSA_CDC_DMA_RX_0_VIRT,
@@ -744,6 +752,7 @@ static struct snd_soc_dai_link msm_wsa2_cdc_dma_be_dai_links[] = {
 		.ops = &msm_common_be_ops,
 		SND_SOC_DAILINK_REG(wsa2_dma_tx1),
 	},
+#if 0
 	{
 		.name = LPASS_BE_WSA2_CDC_DMA_TX_0,
 		.stream_name = LPASS_BE_WSA2_CDC_DMA_TX_0,
@@ -753,6 +762,7 @@ static struct snd_soc_dai_link msm_wsa2_cdc_dma_be_dai_links[] = {
 		/* .no_host_mode = SND_SOC_DAI_LINK_NO_HOST, */
 		SND_SOC_DAILINK_REG(wsa2_vi_feedback),
 	},
+#endif
 };
 
 static struct snd_soc_dai_link msm_wsa_wsa2_cdc_dma_be_dai_links[] = {
@@ -790,6 +800,7 @@ static struct snd_soc_dai_link msm_wsa_wsa2_cdc_dma_be_dai_links[] = {
 		.ops = &msm_common_be_ops,
 		SND_SOC_DAILINK_REG(wsa_wsa2_dma_tx1),
 	},
+#if 0
 	{
 		.name = LPASS_BE_WSA_CDC_DMA_TX_0,
 		.stream_name = LPASS_BE_WSA_CDC_DMA_TX_0,
@@ -799,6 +810,7 @@ static struct snd_soc_dai_link msm_wsa_wsa2_cdc_dma_be_dai_links[] = {
 		/* .no_host_mode = SND_SOC_DAI_LINK_NO_HOST, */
 		SND_SOC_DAILINK_REG(wsa_wsa2_vi_feedback),
 	},
+#endif
 };
 
 static struct snd_soc_dai_link msm_rx_tx_cdc_dma_be_dai_links[] = {
@@ -2316,6 +2328,7 @@ static int msm_asoc_machine_probe(struct platform_device *pdev)
 	msm_parse_upd_configuration(pdev, pdata);
 
 	ret = devm_snd_soc_register_card(&pdev->dev, card);
+	printk("asoc register soundcard ret=%d\n", ret);
 	if (ret == -EPROBE_DEFER) {
 		if (codec_reg_done)
 			ret = -EINVAL;
@@ -2336,6 +2349,12 @@ static int msm_asoc_machine_probe(struct platform_device *pdev)
 	if (!pdata->fsa_handle)
 		dev_dbg(&pdev->dev, "property %s not detected in node %s\n",
 			"fsa4480-i2c-handle", pdev->dev.of_node->full_name);
+
+	pdata->fsa_handle_2 = of_parse_phandle(pdev->dev.of_node,
+					"fsa4480-i2c-handle-sub", 0);
+	if (!pdata->fsa_handle_2)
+		dev_dbg(&pdev->dev, "property %s not detected in node %s\n",
+			"fsa4480-i2c-handle-sub", pdev->dev.of_node->full_name);
 
 	pdata->dmic01_gpio_p = of_parse_phandle(pdev->dev.of_node,
 					      "qcom,cdc-dmic01-gpios",

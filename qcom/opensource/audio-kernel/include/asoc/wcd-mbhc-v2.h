@@ -438,6 +438,7 @@ struct wcd_mbhc_config {
 	int anc_micbias;
 	bool enable_anc_mic_detect;
 	u32 enable_usbc_analog;
+	u32 enable_usbc_analog_2;
 	bool moisture_duty_cycle_en;
 };
 
@@ -621,6 +622,8 @@ struct wcd_mbhc {
 	bool force_linein;
 	struct device_node *fsa_np;
 	struct notifier_block fsa_nb;
+	struct device_node *fsa_np_2;
+	struct notifier_block fsa_nb_2;
 
 	struct extcon_dev *extdev;
 };

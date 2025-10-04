@@ -234,12 +234,14 @@ SND_SOC_DAILINK_DEFS(proxy_rx,
 
 SND_SOC_DAILINK_DEFS(pri_mi2s_rx,
 	DAILINK_COMP_ARRAY(COMP_CPU("snd-soc-dummy-dai")),
-	DAILINK_COMP_ARRAY(COMP_CODEC("msm-stub-codec.1", "msm-stub-rx")),
+	DAILINK_COMP_ARRAY(COMP_CODEC("cs35l45.3-0030", "cs35l45"),
+			   COMP_CODEC("cs35l45.3-0031", "cs35l45")),
 	DAILINK_COMP_ARRAY(COMP_PLATFORM("snd-soc-dummy")));
 
 SND_SOC_DAILINK_DEFS(pri_mi2s_tx,
 	DAILINK_COMP_ARRAY(COMP_CPU("snd-soc-dummy-dai")),
-	DAILINK_COMP_ARRAY(COMP_CODEC("msm-stub-codec.1", "msm-stub-tx")),
+	DAILINK_COMP_ARRAY(COMP_CODEC("cs35l45.3-0030", "cs35l45"),
+			   COMP_CODEC("cs35l45.3-0031", "cs35l45")),
 	DAILINK_COMP_ARRAY(COMP_PLATFORM("snd-soc-dummy")));
 
 SND_SOC_DAILINK_DEFS(sec_mi2s_rx,
@@ -352,6 +354,7 @@ SND_SOC_DAILINK_DEFS(sen_tdm_tx_0,
 	DAILINK_COMP_ARRAY(COMP_CODEC("msm-stub-codec.1", "msm-stub-tx")),
 	DAILINK_COMP_ARRAY(COMP_PLATFORM("snd-soc-dummy")));
 
+#if 0
 SND_SOC_DAILINK_DEFS(vi_feedback,
 	DAILINK_COMP_ARRAY(COMP_CPU("snd-soc-dummy-dai")),
 	DAILINK_COMP_ARRAY(COMP_CODEC("lpass-cdc", "wsa_macro_vifeedback")),
@@ -367,7 +370,7 @@ SND_SOC_DAILINK_DEFS(wsa_wsa2_vi_feedback,
 	DAILINK_COMP_ARRAY(COMP_CODEC("lpass-cdc", "wsa_macro_vifeedback"),
 			   COMP_CODEC("lpass-cdc", "wsa2_macro_vifeedback")),
 	DAILINK_COMP_ARRAY(COMP_PLATFORM("snd-soc-dummy")));
-
+#endif
 SND_SOC_DAILINK_DEFS(tavil_i2s_rx1,
 	DAILINK_COMP_ARRAY(COMP_CPU("snd-soc-dummy-dai")),
 	DAILINK_COMP_ARRAY(COMP_CODEC("tavil_codec", "tavil_i2s_rx1")),
