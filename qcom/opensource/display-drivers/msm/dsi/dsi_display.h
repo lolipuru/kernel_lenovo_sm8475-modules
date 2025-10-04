@@ -836,4 +836,6 @@ int dsi_display_restore_bit_clk(struct dsi_display *display, struct dsi_display_
 bool dsi_display_mode_match(const struct dsi_display_mode *mode1,
 		struct dsi_display_mode *mode2, unsigned int match_flags);
 
+int dsi_display_hbm_setup(struct dsi_display *display, int enable);
+
 #endif /* _DSI_DISPLAY_H_ */

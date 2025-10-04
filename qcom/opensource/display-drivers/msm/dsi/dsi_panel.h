@@ -165,6 +165,8 @@ struct dsi_backlight_config {
 
 	/* DCS params */
 	bool lp_mode;
+
+	struct backlight_device *bl_dev;
 };
 
 struct dsi_reset_seq {
@@ -180,6 +182,9 @@ struct dsi_panel_reset_config {
 	int disp_en_gpio;
 	int lcd_mode_sel_gpio;
 	u32 mode_sel_state;
+
+	int bias_enp_gpio;
+    int bias_enn_gpio;
 };
 
 enum esd_check_status_mode {
@@ -289,6 +294,8 @@ struct dsi_panel {
 	enum dsi_panel_physical_type panel_type;
 
 	struct dsi_panel_ops panel_ops;
+
+	bool hbm_status;
 };
 
 static inline bool dsi_panel_ulps_feature_enabled(struct dsi_panel *panel)
@@ -425,4 +432,6 @@ int dsi_panel_create_cmd_packets(const char *data, u32 length, u32 count,
 void dsi_panel_destroy_cmd_packets(struct dsi_panel_cmd_set *set);
 
 void dsi_panel_dealloc_cmd_packets(struct dsi_panel_cmd_set *set);
+
+int dsi_panel_hbm_setup(struct dsi_panel *panel, bool enable);
 #endif /* _DSI_PANEL_H_ */

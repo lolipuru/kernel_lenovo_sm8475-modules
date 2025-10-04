@@ -19,6 +19,9 @@
 #include "sde_dsc_helper.h"
 #include "sde_vdc_helper.h"
 
+#include <linux/input/touch_common.h>
+#include <linux/input/ktz8866_common.h>
+
 /**
  * topology is currently defined by a set of following 3 values:
  * 1. num of layer mixers
@@ -369,6 +372,13 @@ static int dsi_panel_power_on(struct dsi_panel *panel)
 		goto error_disable_vregs;
 	}
 
+	if (gpio_is_valid(panel->reset_config.bias_enp_gpio))
+        	gpio_set_value(panel->reset_config.bias_enp_gpio, 1); //362
+
+	if (gpio_is_valid(panel->reset_config.bias_enn_gpio))
+        	gpio_set_value(panel->reset_config.bias_enn_gpio, 1); //366
+	msleep(10);
+
 	rc = dsi_panel_reset(panel);
 	if (rc) {
 		DSI_ERR("[%s] failed to reset panel, rc=%d\n", panel->name, rc);
@@ -397,12 +407,37 @@ static int dsi_panel_power_off(struct dsi_panel *panel)
 {
 	int rc = 0;
 
-	if (gpio_is_valid(panel->reset_config.disp_en_gpio))
-		gpio_set_value(panel->reset_config.disp_en_gpio, 0);
+//	if (gpio_is_valid(panel->reset_config.disp_en_gpio))
+//		gpio_set_value(panel->reset_config.disp_en_gpio, 0);
 
-	if (gpio_is_valid(panel->reset_config.reset_gpio) &&
+	int gesture_flag = get_gesture_flag();
+	if (gesture_flag)
+	{
+		DSI_INFO("nvt power-off gesture_flag = %d\n",gesture_flag);
+		if (gpio_is_valid(panel->reset_config.reset_gpio) &&
 					!panel->reset_gpio_always_on)
+		gpio_set_value(panel->reset_config.reset_gpio, 1);
+
+
+	}
+	else
+	{
+		DSI_INFO("nvt power-off  gesture_flag = %d\n",gesture_flag);
+		if (gpio_is_valid(panel->reset_config.reset_gpio) &&
+					!panel->reset_gpio_always_on)
+
 		gpio_set_value(panel->reset_config.reset_gpio, 0);
+		msleep(3);
+
+		if (gpio_is_valid(panel->reset_config.bias_enn_gpio))
+        		gpio_set_value(panel->reset_config.bias_enn_gpio, 0); //366
+
+
+		if (gpio_is_valid(panel->reset_config.bias_enp_gpio))
+        		gpio_set_value(panel->reset_config.bias_enp_gpio, 0); //362
+
+	}
+
 
 	if (gpio_is_valid(panel->reset_config.lcd_mode_sel_gpio))
 		gpio_set_value(panel->reset_config.lcd_mode_sel_gpio, 0);
@@ -420,11 +455,12 @@ static int dsi_panel_power_off(struct dsi_panel *panel)
 		       rc);
 	}
 
+	if(!gesture_flag){
 	rc = dsi_pwr_enable_regulator(&panel->power_info, false);
 	if (rc)
 		DSI_ERR("[%s] failed to enable vregs, rc=%d\n",
 				panel->name, rc);
-
+	}
 	return rc;
 }
 static int dsi_panel_tx_cmd_set(struct dsi_panel *panel,
@@ -549,6 +585,22 @@ static int dsi_panel_wled_register(struct dsi_panel *panel,
 	return 0;
 }
 
+static int dsi_panel_erternal_register(struct dsi_panel *panel,
+                struct dsi_backlight_config *bl)
+{
+        struct backlight_device *dev;
+
+        dev= backlight_device_get_by_type(BACKLIGHT_RAW);
+        if (!dev) {
+                DSI_ERR("[%s]  fail raw backlight register rc=%d\n",
+                                panel->name, -EPROBE_DEFER);
+                return -EPROBE_DEFER;
+        }
+
+        bl->bl_dev = dev;
+        return 0;
+}
+
 static int mipi_dsi_dcs_subtype_set_display_brightness(struct mipi_dsi_device *dsi,
 	u32 bl_lvl, u32 bl_dcs_subtype)
 {
@@ -651,6 +703,28 @@ error:
 	return rc;
 }
 
+int dsi_panel_hbm_setup(struct dsi_panel *panel, bool status)
+{
+	int rc = 0;
+
+	if (!panel) {
+		pr_err("Invalid params\n");
+		return -EINVAL;
+	}
+
+	if (status) {
+		rc = dsi_panel_tx_cmd_set(panel, DSI_CMD_SET_HBM_ON);
+		if (rc)
+			pr_err("transmit hbm on cmd fail!\n");
+	} else {
+		rc = dsi_panel_tx_cmd_set(panel, DSI_CMD_SET_HBM_OFF);
+		if (rc)
+			pr_err("transmit hbm off cmd fail!\n");
+	}
+
+	return rc;
+}
+
 int dsi_panel_set_backlight(struct dsi_panel *panel, u32 bl_lvl)
 {
 	int rc = 0;
@@ -668,6 +742,7 @@ int dsi_panel_set_backlight(struct dsi_panel *panel, u32 bl_lvl)
 		rc = dsi_panel_update_backlight(panel, bl_lvl);
 		break;
 	case DSI_BACKLIGHT_EXTERNAL:
+		rc = bkl_backlight_device_set_brightness(bl->bl_dev,bl_lvl);
 		break;
 	case DSI_BACKLIGHT_PWM:
 		rc = dsi_panel_update_pwm_backlight(panel, bl_lvl);
@@ -807,6 +882,7 @@ static int dsi_panel_bl_register(struct dsi_panel *panel)
 	case DSI_BACKLIGHT_DCS:
 		break;
 	case DSI_BACKLIGHT_EXTERNAL:
+		rc = dsi_panel_erternal_register(panel,bl);
 		break;
 	case DSI_BACKLIGHT_PWM:
 		rc = dsi_panel_pwm_register(panel);
@@ -1941,6 +2017,14 @@ const char *cmd_set_prop_map[DSI_CMD_SET_MAX] = {
 	"qcom,mdss-dsi-post-mode-switch-on-command",
 	"qcom,mdss-dsi-qsync-on-commands",
 	"qcom,mdss-dsi-qsync-off-commands",
+	"qcom,mdss-dsi-hbm-on-command",
+	"qcom,mdss-dsi-hbm-off-command",
+ 	"qcom,mdss-dsi-dispparam-pen-144hz-disable-control-command",
+ 	"qcom,mdss-dsi-dispparam-pen-144hz-switch-command",
+ 	"qcom,mdss-dsi-dispparam-pen-144hz-enable-touch-command",
+	"qcom,mdss-dsi-dispparam-pen-others-enable-control-command",
+	"qcom,mdss-dsi-dispparam-pen-others-switch-command",
+	"qcom,mdss-dsi-dispparam-pen-144hz-power-on-command",
 };
 
 const char *cmd_set_state_map[DSI_CMD_SET_MAX] = {
@@ -1969,6 +2053,14 @@ const char *cmd_set_state_map[DSI_CMD_SET_MAX] = {
 	"qcom,mdss-dsi-post-mode-switch-on-command-state",
 	"qcom,mdss-dsi-qsync-on-commands-state",
 	"qcom,mdss-dsi-qsync-off-commands-state",
+	"qcom,mdss-dsi-hbm-on-state",
+	"qcom,mdss-dsi-hbm-off-state",
+	"qcom,mdss-dsi-dispparam-pen-144hz-disable-control-command-state",
+	"qcom,mdss-dsi-dispparam-pen-144hz-switch-command-state",
+	"qcom,mdss-dsi-dispparam-pen-144hz-enable-touch-command-state",
+	"qcom,mdss-dsi-dispparam-pen-others-enable-control-command-state",
+	"qcom,mdss-dsi-dispparam-pen-others-switch-command-state",
+	"qcom,mdss-dsi-dispparam-pen-144hz-power-on-command-state",
 };
 
 int dsi_panel_get_cmd_pkt_count(const char *data, u32 length, u32 *cnt)
@@ -2411,6 +2503,18 @@ static int dsi_panel_parse_gpios(struct dsi_panel *panel)
 		DSI_DEBUG("[%s] reset gpio not set, rc=%d\n", panel->name,
 			panel->reset_config.reset_gpio);
 	}
+
+    panel->reset_config.bias_enp_gpio = utils->get_named_gpio(utils->data,
+		"qcom,bias-enp-gpio", 0);
+    if (!gpio_is_valid(panel->reset_config.bias_enp_gpio))
+		DSI_DEBUG("[%s] bias-enp-gpio is not set, rc=%d\n",
+		panel->name, rc);
+
+    panel->reset_config.bias_enn_gpio = utils->get_named_gpio(utils->data,
+		"qcom,bias-enn-gpio", 0);
+        if (!gpio_is_valid(panel->reset_config.bias_enn_gpio))
+			DSI_DEBUG("[%s] bias-enn-gpio is not set, rc=%d\n",
+            panel->name, rc);
 
 	panel->reset_config.disp_en_gpio = utils->get_named_gpio(utils->data,
 						"qcom,5v-boost-gpio",
@@ -3542,13 +3646,7 @@ static int dsi_panel_parse_esd_config(struct dsi_panel *panel)
 		} else if (!strcmp(string, "reg_read")) {
 			esd_config->status_mode = ESD_MODE_REG_READ;
 		} else if (!strcmp(string, "te_signal_check")) {
-			if (panel->panel_mode == DSI_OP_CMD_MODE) {
 				esd_config->status_mode = ESD_MODE_PANEL_TE;
-			} else {
-				DSI_ERR("TE-ESD not valid for video mode\n");
-				rc = -EINVAL;
-				goto error;
-			}
 		} else if (!strcmp(string, "esd_sw_sim_success")) {
 			esd_config->status_mode = ESD_MODE_SW_SIM_SUCCESS;
 		} else {
@@ -3656,6 +3754,7 @@ struct dsi_panel *dsi_panel_get(struct device *parent,
 	panel->panel_of_node = of_node;
 	panel->parent = parent;
 	panel->type = type;
+	panel->hbm_status = false;
 
 	dsi_panel_update_util(panel, parser_node);
 	utils = &panel->utils;
@@ -4557,6 +4656,45 @@ error:
 	return rc;
 }
 
+int dsi_panel_match_fps_pen_setting(struct dsi_panel *panel,
+                struct dsi_display_mode *adj_mode,int stages)
+{
+	int rc =0;
+
+	if (!panel || !panel->cur_mode || !adj_mode) {
+		DSI_ERR("invalid params\n");
+		return -EAGAIN;
+	}
+	switch (stages) {
+		case 1: //N - 1
+			if (adj_mode->timing.refresh_rate == 144) {
+				rc = dsi_panel_tx_cmd_set(panel, DSI_CMD_SET_DISP_PEN_144HZ_DISABLE_CONTROL);
+			} else {
+				rc = dsi_panel_tx_cmd_set(panel, DSI_CMD_SET_DISP_PEN_OTHERS_ENABLE_CONTROL);
+			}
+			break;
+		case 2: //N, cmd + porch
+			 if (adj_mode->timing.refresh_rate == 144) {
+				rc = dsi_panel_tx_cmd_set(panel, DSI_CMD_SET_DISP_PEN_144HZ_SWITCH);
+			 } else {
+				 rc = dsi_panel_tx_cmd_set(panel, DSI_CMD_SET_DISP_PEN_OTHERS_SWITCH);
+			 }
+			 break;
+		case 3: //N + 1, 144 only
+			 rc = dsi_panel_tx_cmd_set(panel, DSI_CMD_SET_DISP_PEN_144HZ_ENABLE_TOUCH);
+			 break;
+		default:
+			pr_info("dsi: wrong stages = %d\n", stages);
+	}
+
+	if (rc) {
+		DSI_ERR("Failed to send DSI_CMD_SET_DISP_PEN_120HZ command\n");
+		return -EAGAIN;
+	}	
+	return rc;
+
+}
+
 static int dsi_panel_roi_prepare_dcs_cmds(struct dsi_panel_cmd_set *set,
 		struct dsi_rect *roi, int ctrl_idx, int unicast)
 {
@@ -4871,8 +5009,18 @@ int dsi_panel_enable(struct dsi_panel *panel)
 		}
 	}
 	panel->panel_initialized = true;
+	DSI_ERR ("%s\n", __func__);
 
 error:
+
+    if (panel->cur_mode->timing.refresh_rate == 144) {
+		rc = dsi_panel_tx_cmd_set(panel, DSI_CMD_SET_DISP_PEN_144HZ_POWER_ON);
+		if (rc) {
+			DSI_ERR("[%s] failed to update TP fps code setting, rc=%d\n",
+            panel->name, rc);
+        }
+    }
+
 	mutex_unlock(&panel->panel_lock);
 	return rc;
 }
@@ -4962,6 +5110,8 @@ int dsi_panel_disable(struct dsi_panel *panel)
 	}
 	panel->panel_initialized = false;
 	panel->power_mode = SDE_MODE_DPMS_OFF;
+	panel->hbm_status = false;
+	DSI_ERR("%s\n", __func__);
 
 	mutex_unlock(&panel->panel_lock);
 	return rc;

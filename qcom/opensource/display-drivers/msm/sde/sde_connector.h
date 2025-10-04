@@ -611,6 +611,8 @@ struct sde_connector {
 	int rx_len;
 
 	struct edid *cached_edid;
+
+	struct backlight_device *hbm_device;
 };
 
 /**

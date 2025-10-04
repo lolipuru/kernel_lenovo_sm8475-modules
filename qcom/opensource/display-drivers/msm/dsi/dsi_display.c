@@ -52,6 +52,8 @@ static const struct of_device_id dsi_display_dt_match[] = {
 	{}
 };
 
+static int dsi_display_hbm_on(struct dsi_display *display);
+
 bool is_skip_op_required(struct dsi_display *display)
 {
 	if (!display)
@@ -218,6 +220,9 @@ void dsi_rect_intersect(const struct dsi_rect *r1,
 	}
 }
 
+int pre_brt;
+extern int dsi_panel_on_hbm;
+
 int dsi_display_set_backlight(struct drm_connector *connector,
 		void *display, u32 bl_lvl)
 {
@@ -239,6 +244,17 @@ int dsi_display_set_backlight(struct drm_connector *connector,
 	}
 
 	panel->bl_config.bl_level = bl_lvl;
+
+	if (bl_lvl)
+		pre_brt = bl_lvl;
+
+	if (panel->hbm_status)
+		goto error;
+	if (dsi_panel_on_hbm == 1) {
+		dsi_display_hbm_on(display);
+		panel->hbm_status = true;
+		goto error;
+	}
 
 	/* scale backlight */
 	bl_scale = panel->bl_config.bl_scale;
@@ -269,6 +285,90 @@ int dsi_display_set_backlight(struct drm_connector *connector,
 		DSI_ERR("unable to set backlight\n");
 
 error:
+	mutex_unlock(&panel->panel_lock);
+	return rc;
+}
+
+static int dsi_display_hbm_on(struct dsi_display *display)
+{
+	int rc = 0;
+	struct dsi_panel *panel = display->panel;
+
+	pr_info("dsi_display_hbm_on\n");
+
+	rc = dsi_panel_hbm_setup(panel, true);
+	if (rc)
+		pr_err("dsi failed to hbm on tx cmd!\n");
+
+	return rc;
+}
+
+static int dsi_display_hbm_off(struct dsi_display *display)
+{
+	int rc = 0;
+	struct dsi_panel* panel = display->panel;
+
+	rc = dsi_panel_hbm_setup(panel, false);
+	if (rc) {
+		pr_err("wangweiran failed to disable hbm by tx cmd!\n");
+		return rc;
+	}
+
+	rc = dsi_panel_set_backlight(panel, pre_brt);
+	if (rc)
+		pr_err("failed to turn off tm hbm\n", rc);
+
+	return rc;
+}
+
+int dsi_display_hbm_setup(struct dsi_display *display, int enable)
+{
+	int rc = 0;
+	struct dsi_panel *panel = display->panel;
+
+	if (display == NULL || panel == NULL) {
+		pr_err("%s: wangweiran display or panel is NULL\n", __func__);
+		return -EINVAL;
+	}
+
+	mutex_lock(&panel->panel_lock);
+
+	if (!dsi_panel_initialized(panel)) {
+		pr_err("wangweiran panel is not initialized yet!\n");
+		goto exit;
+        }
+
+	switch(enable) {
+		case 0:
+			if (!display->panel->hbm_status)
+				goto exit;
+
+			rc = dsi_display_hbm_off(display);
+			if (rc) {
+				pr_err("dsi_display_hbm_off failed!\n");
+				goto exit;
+			}
+
+			panel->hbm_status = false;
+			break;
+		case 1:
+			if (panel->hbm_status)
+				goto exit;
+
+			rc = dsi_display_hbm_on(display);
+			if (rc) {
+				pr_err("dsi_display_hbm_on failed!\n");
+				goto exit;
+			}
+
+			panel->hbm_status = true;
+			break;
+		default:
+			pr_err("dsi_display_hbm_on: unsupport case = %d\n", enable);
+			break;
+	}
+
+exit:
 	mutex_unlock(&panel->panel_lock);
 	return rc;
 }
@@ -991,8 +1091,7 @@ int dsi_display_check_status(struct drm_connector *connector, void *display,
 	if (te_check_override)
 		te_rechecks = MAX_TE_RECHECKS;
 
-	if ((dsi_display->trusted_vm_env) ||
-			(panel->panel_mode == DSI_OP_VIDEO_MODE))
+	if (dsi_display->trusted_vm_env)
 		te_rechecks = 0;
 
 	dsi_display_set_ctrl_esd_check_flag(dsi_display, true);
@@ -4977,6 +5076,9 @@ static int dsi_display_dfps_calc_front_porch(
 	else
 		b_fp_new = b_fp - add_porches;
 
+	if (new_fps == 144 && b_fp_new % 2 == 0)
+		b_fp_new = b_fp_new - 1;
+
 	DSI_DEBUG("fps %u a %u b %u b_fp %u new_fp %d\n",
 			new_fps, a_total, b_total, b_fp, b_fp_new);
 
@@ -7096,6 +7198,7 @@ int dsi_display_get_modes(struct dsi_display *display,
 	int i, start, end, rc = -EINVAL;
 	int dsc_modes = 0, nondsc_modes = 0;
 	struct dsi_qsync_capabilities *qsync_caps;
+	struct dsi_dfps_capabilities *fps_type = &display->panel->dfps_caps;
 
 	if (!display || !out_modes) {
 		DSI_ERR("Invalid params\n");
@@ -7274,6 +7377,11 @@ int dsi_display_get_modes(struct dsi_display *display,
 				sub_mode->priv_info->qsync_min_fps = sub_mode->timing.qsync_min_fps;
 			}
 
+			if (sub_mode->timing.refresh_rate == 144) {
+				fps_type->type = DSI_DFPS_IMMEDIATE_HFP;
+			} else {
+				fps_type->type = DSI_DFPS_IMMEDIATE_VFP;
+			}
 			dsi_display_get_dfps_timing(display, sub_mode,
 					curr_refresh_rate);
 			sub_mode->panel_mode_caps = DSI_OP_VIDEO_MODE;
