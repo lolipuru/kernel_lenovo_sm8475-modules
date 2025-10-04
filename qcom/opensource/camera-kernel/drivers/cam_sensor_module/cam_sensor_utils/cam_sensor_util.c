@@ -10,11 +10,15 @@
 #include "cam_mem_mgr.h"
 #include "cam_res_mgr_api.h"
 
+#include "../cam_power/cam_power_dev.h"
+
 #define CAM_SENSOR_PINCTRL_STATE_SLEEP "cam_suspend"
 #define CAM_SENSOR_PINCTRL_STATE_DEFAULT "cam_default"
 
 #define VALIDATE_VOLTAGE(min, max, config_val) ((config_val) && \
 	(config_val >= min) && (config_val <= max))
+
+extern uint32_t BoardType;
 
 static struct i2c_settings_list*
 	cam_sensor_get_i2c_ptr(struct i2c_settings_array *i2c_reg_settings,
@@ -2054,6 +2058,12 @@ int cam_sensor_core_power_up(struct cam_sensor_power_ctrl_t *ctrl,
 
 		CAM_DBG(CAM_SENSOR, "seq_type %d", power_setting->seq_type);
 
+		if(power_setting->seq_type == SENSOR_VIO && BoardType == 2)
+			continue;
+
+		if(power_setting->seq_type == SENSOR_CUSTOM_REG2 && BoardType == 1)
+			continue;
+
 		switch (power_setting->seq_type) {
 		case SENSOR_MCLK:
 			if (power_setting->seq_val >= soc_info->num_clk) {
@@ -2202,6 +2212,25 @@ int cam_sensor_core_power_up(struct cam_sensor_power_ctrl_t *ctrl,
 					"Error in handling VREG GPIO");
 				goto power_up_failed;
 			}
+
+			if((power_setting->seq_type == SENSOR_VIO || power_setting->seq_type == SENSOR_CUSTOM_REG2) && (soc_info->index == 0 || soc_info->index == 3)) {
+				rc = cam_power_ldo_control(soc_info->index, true);
+				if (rc < 0)
+					CAM_ERR(CAM_SENSOR, "wl set cam%d vol failed: rc: %d", soc_info->index, rc);
+			}
+
+			if((power_setting->seq_type == SENSOR_VDIG) && (soc_info->index == 2)) {
+				rc = cam_power_ldo_control(soc_info->index, true);
+				if (rc < 0)
+					CAM_ERR(CAM_SENSOR, "wl set cam%d vol failed: rc: %d", soc_info->index, rc);
+			}
+
+
+			if((power_setting->seq_type == SENSOR_VANA) && (soc_info->index == 1)) {
+				rc = cam_power_ldo_control(soc_info->index, true);
+				if (rc < 0)
+					CAM_ERR(CAM_SENSOR, "wl set cam%d vol failed: rc: %d", soc_info->index, rc);
+			}
 			break;
 		default:
 			CAM_ERR(CAM_SENSOR, "error power seq type %d",
@@ -2223,6 +2252,11 @@ power_up_failed:
 		power_setting = &ctrl->power_setting[index];
 		CAM_DBG(CAM_SENSOR, "type %d",
 			power_setting->seq_type);
+		if(power_setting->seq_type == SENSOR_VIO && BoardType == 2)
+			continue;
+
+		if(power_setting->seq_type == SENSOR_CUSTOM_REG2 && BoardType == 1)
+			continue;
 		switch (power_setting->seq_type) {
 		case SENSOR_MCLK:
 			for (i = soc_info->num_clk - 1; i >= 0; i--) {
@@ -2380,6 +2414,13 @@ int cam_sensor_util_power_down(struct cam_sensor_power_ctrl_t *ctrl,
 
 		ps = NULL;
 		CAM_DBG(CAM_SENSOR, "seq_type %d",  pd->seq_type);
+
+		if(pd->seq_type == SENSOR_VIO && BoardType == 2)
+			continue;
+
+		if(pd->seq_type == SENSOR_CUSTOM_REG2 && BoardType == 1)
+			continue;
+
 		switch (pd->seq_type) {
 		case SENSOR_MCLK:
 			for (i = soc_info->num_clk - 1; i >= 0; i--) {
@@ -2417,6 +2458,25 @@ int cam_sensor_util_power_down(struct cam_sensor_power_ctrl_t *ctrl,
 		case SENSOR_CUSTOM_REG2:
 			if (pd->seq_val == INVALID_VREG)
 				break;
+
+			if((pd->seq_type == SENSOR_VDIG) && (soc_info->index == 2)) {
+				 ret = cam_power_ldo_control(soc_info->index, false);
+				 if (ret < 0)
+					 CAM_ERR(CAM_SENSOR, "wl set cam%d vol failed: rc: %d", soc_info->index, ret);
+			}
+
+
+			if((pd->seq_type == SENSOR_VIO || pd->seq_type == SENSOR_CUSTOM_REG2) && (soc_info->index == 0 || soc_info->index == 3)) {
+				 ret = cam_power_ldo_control(soc_info->index, false);
+				 if (ret < 0)
+					 CAM_ERR(CAM_SENSOR, "wl set cam%d vol failed: rc: %d", soc_info->index, ret);
+			}
+
+			if((pd->seq_type == SENSOR_VANA) && (soc_info->index == 1)) {
+				ret = cam_power_ldo_control(soc_info->index, false);
+				if (ret < 0)
+					CAM_ERR(CAM_SENSOR, "wl set cam%d vol failed: rc: %d", soc_info->index, ret);
+			}
 
 			ps = msm_camera_get_power_settings(
 				ctrl, pd->seq_type,

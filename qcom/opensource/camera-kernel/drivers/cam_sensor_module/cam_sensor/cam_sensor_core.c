@@ -12,7 +12,7 @@
 #include "cam_trace.h"
 #include "cam_common_util.h"
 #include "cam_packet_util.h"
-
+#include <cam_sensor_io.h>
 
 static int cam_sensor_update_req_mgr(
 	struct cam_sensor_ctrl_t *s_ctrl,
@@ -852,12 +852,19 @@ int cam_sensor_match_id(struct cam_sensor_ctrl_t *s_ctrl)
 	if (s_ctrl->hw_no_ops)
 		return rc;
 
+    if(slave_info->sensor_id == 0x02e0){
+               rc = camera_io_dev_read(
+               &(s_ctrl->io_master_info),
+               slave_info->sensor_id_reg_addr,
+               &chipid, CAMERA_SENSOR_I2C_TYPE_BYTE,
+               CAMERA_SENSOR_I2C_TYPE_WORD);
+	}else{
 	rc = camera_io_dev_read(
 		&(s_ctrl->io_master_info),
 		slave_info->sensor_id_reg_addr,
 		&chipid, CAMERA_SENSOR_I2C_TYPE_WORD,
 		CAMERA_SENSOR_I2C_TYPE_WORD);
-
+	}
 	CAM_DBG(CAM_SENSOR, "%s read id: 0x%x expected id 0x%x:",
 		s_ctrl->sensor_name, chipid, slave_info->sensor_id);
 
@@ -874,6 +881,9 @@ int32_t cam_sensor_driver_cmd(struct cam_sensor_ctrl_t *s_ctrl,
 	void *arg)
 {
 	int rc = 0, pkt_opcode = 0;
+	/* add for runin front camera fail */
+	int framecnt = 0, loops = 0, readloops = 0;
+	/* add for runin front camera fail */
 	struct cam_control *cmd = (struct cam_control *)arg;
 	struct cam_sensor_power_ctrl_t *power_info = NULL;
 	struct timespec64 ts;
@@ -1243,6 +1253,37 @@ int32_t cam_sensor_driver_cmd(struct cam_sensor_ctrl_t *s_ctrl,
 				"cannot apply streamoff settings for %s",
 				s_ctrl->sensor_name);
 			}
+			/* add for runin front camera fail */
+			if (strcmp(s_ctrl->sensor_name ,"s5k4h7") == 0) {
+				CAM_ERR(CAM_SENSOR, "enter camera %s stream off loop", s_ctrl->sensor_name);
+				for (loops = 0; loops < 3; loops++) {
+					for(readloops = 0; readloops < 20; readloops++) {
+						usleep_range(5000, 6000);
+						rc = camera_io_dev_read(
+							&(s_ctrl->io_master_info),
+							0x0005,
+							&framecnt,
+							CAMERA_SENSOR_I2C_TYPE_WORD,
+							CAMERA_SENSOR_I2C_TYPE_BYTE);
+						if (framecnt == 0xFF) {
+							CAM_ERR(CAM_SENSOR, "camera %s stream off successfully", s_ctrl->sensor_name);
+							readloops = 20;
+							loops = 3;
+						}
+					}
+					if (loops < 3) {
+						CAM_ERR(CAM_SENSOR, "camera %s stream off again", s_ctrl->sensor_name);
+						rc = cam_sensor_apply_settings(s_ctrl, 0,
+							CAM_SENSOR_PACKET_OPCODE_SENSOR_STREAMOFF);
+					}
+					if (rc < 0) {
+						CAM_ERR(CAM_SENSOR,
+							"cannot apply streamoff settings for %s",
+							s_ctrl->sensor_name);
+					}
+				}
+			}
+			/* add for runin front camera fail */
 		}
 
 		cam_sensor_release_per_frame_resource(s_ctrl);

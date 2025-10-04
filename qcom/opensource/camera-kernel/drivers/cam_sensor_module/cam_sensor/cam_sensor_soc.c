@@ -13,6 +13,8 @@
 #include "cam_sensor_soc.h"
 #include "cam_soc_util.h"
 
+uint32_t BoardType = 0;
+
 int32_t cam_sensor_get_sub_module_index(struct device_node *of_node,
 	struct cam_sensor_board_info *s_info)
 {
@@ -277,6 +279,91 @@ FREE_SENSOR_DATA:
 	return rc;
 }
 
+static int32_t cam_get_boardtype_from_kernel(uint32_t boardid)
+{
+	uint32_t BoardidNumber[2][15] = {
+		//PRC
+		{
+		(uint32_t)0,//EVB
+		(uint32_t)1,//EVT1-1
+		(uint32_t)16,//EVT1-2
+		(uint32_t)17,//EVT1-3
+		(uint32_t)2,//DVT1-1
+		(uint32_t)3,//DVT1-2,preDVT for halo
+		(uint32_t)18,//DVT1-3,DVT1B for halo
+		(uint32_t)19,//DVT1-4,DVT1C for halo
+		(uint32_t)4,//DVT2-1
+		(uint32_t)5,//DVT2-2
+		(uint32_t)20,//DVT2-3
+		(uint32_t)21,//DVT2-4
+		(uint32_t)6,//PVT1
+		(uint32_t)22,//PVT2
+		(uint32_t)7 //MP
+		},
+		//ROW
+		{
+		(uint32_t)8,//EVB
+		(uint32_t)9,//EVT1-1
+		(uint32_t)24,//EVT1-2
+		(uint32_t)25,//EVT1-3
+		(uint32_t)10,//DVT1-1
+		(uint32_t)11,//DVT1-2
+		(uint32_t)26,//DVT1-3
+		(uint32_t)27,//DVT1-4
+		(uint32_t)12,//DVT2-1
+		(uint32_t)13,//DVT2-2
+		(uint32_t)28,//DVT2-3
+		(uint32_t)29,//DVT2-4
+		(uint32_t)14,//PVT1
+		(uint32_t)30,//PVT2
+		(uint32_t)15//MP
+		}
+	};
+	int32_t Xcount,Ycount,Flag = 0;
+	for(Xcount = 0; Xcount < 2; Xcount++) {
+		for(Ycount = 0; Ycount < 15; Ycount++) {
+			if(boardid == BoardidNumber[Xcount][Ycount]) {
+				Flag = Ycount;
+				break;
+			}
+		}
+	}
+	return (Flag <= 7)? 1 : 2; 
+}
+
+static int32_t cam_get_boardid(void)
+{
+	struct device_node *node = NULL;
+	int32_t count, gpioNumber;
+	uint32_t Boardid = 0;
+	char *gpioCompatibleStr[5] = {"regulator-107","regulator-108","regulator-109","regulator-180","regulator-181"};
+	char *gpioNameStr[5] = {"107","108","109","180","181"};
+	int32_t  gpioValue[5] = {0};
+
+	for(count = 0; count < 5; count++) {
+		gpioNumber = 0;
+		node = of_find_compatible_node(NULL,NULL,gpioCompatibleStr[count]);
+		if(node != NULL){
+			CAM_DBG(CAM_SENSOR, "get %s success!\n", gpioCompatibleStr[count]);
+		} else {
+			CAM_DBG(CAM_SENSOR, "get %s fail!\n", gpioCompatibleStr[count]);
+			return 0;
+		}
+		gpioNumber = of_get_named_gpio(node,"gpio",0);
+		if(!gpio_request(gpioNumber,gpioNameStr[count]))
+		{
+			gpioValue[count] = __gpio_get_value(gpioNumber);
+			CAM_DBG(CAM_SENSOR, "gpioValue[%s] : %d\n", gpioNameStr[count], gpioValue[count]);
+			gpio_free(gpioNumber);
+		}
+		Boardid = Boardid | (uint32_t)(gpioValue[count] << count);
+	}
+	CAM_DBG(CAM_SENSOR, "Boradid : %u\n",Boardid);
+	BoardType = cam_get_boardtype_from_kernel(Boardid);
+	CAM_DBG(CAM_SENSOR, "BoardType : %d\n",BoardType);
+	return 1;
+}
+
 int32_t cam_sensor_parse_dt(struct cam_sensor_ctrl_t *s_ctrl)
 {
 	int32_t i, rc = 0;
@@ -288,7 +375,7 @@ int32_t cam_sensor_parse_dt(struct cam_sensor_ctrl_t *s_ctrl)
 		CAM_ERR(CAM_SENSOR, "Failed to get dt data rc %d", rc);
 		return rc;
 	}
-
+	cam_get_boardid();
 	/* Initialize mutex */
 	mutex_init(&(s_ctrl->cam_sensor_mutex));
 
