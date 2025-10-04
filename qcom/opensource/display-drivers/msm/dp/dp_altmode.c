@@ -152,6 +152,7 @@ static int dp_altmode_notify(void *priv, void *data, size_t len)
 			if (altmode->dp_cb && altmode->dp_cb->disconnect)
 				altmode->dp_cb->disconnect(altmode->dev);
 
+			dp_debug_reset_override();
 			rc = dp_altmode_set_usb_dp_mode(altmode);
 			if (rc)
 				DP_ERR("failed to clear usb dp mode, rc: %d\n", rc);
