@@ -1802,6 +1802,33 @@ int wcd_mbhc_start(struct wcd_mbhc *mbhc, struct wcd_mbhc_config *mbhc_cfg)
 		}
 	}
 
+	/* check if USB C analog is defined on device tree */
+	mbhc_cfg->enable_usbc_analog_2 = 0;
+	if (of_find_property(card->dev->of_node, usb_c_dt_sub, NULL)) {
+		rc = of_property_read_u32(card->dev->of_node, usb_c_dt_sub,
+				&mbhc_cfg->enable_usbc_analog_2);
+	}
+	if (mbhc_cfg->enable_usbc_analog_2 == 0 || rc != 0) {
+		dev_dbg(card->dev,
+				"%s: %s in dt node is missing or false\n",
+				__func__, usb_c_dt);
+		dev_dbg(card->dev,
+			"%s: skipping USB c analog configuration\n", __func__);
+	}
+	/* Parse fsa switch handle */
+	if (mbhc_cfg->enable_usbc_analog) {
+		dev_dbg(mbhc->component->dev, "%s: usbc analog enabled\n",
+				__func__);
+		mbhc->swap_thr = GND_MIC_USBC_SWAP_THRESHOLD;
+		mbhc->fsa_np = of_parse_phandle(card->dev->of_node,
+				"fsa4480-i2c-handle", 0);
+		if (!mbhc->fsa_np) {
+			dev_err(card->dev, "%s: fsa4480 i2c node not found\n",
+				__func__);
+			rc = -EINVAL;
+			goto err;
+		}
+	}
 	/* Parse fsa switch handle */
 	if (mbhc_cfg->enable_usbc_analog_2) {
 		dev_dbg(mbhc->component->dev, "%s: usbc analog sub enabled\n",

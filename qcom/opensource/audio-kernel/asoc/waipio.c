@@ -658,6 +658,7 @@ static struct snd_soc_dai_link msm_hac_wsa_cdc_dma_be_dai_links[] = {
 		/* .no_host_mode = SND_SOC_DAI_LINK_NO_HOST, */
 		SND_SOC_DAILINK_REG(vi_feedback),
 	},
+#endif
 };
 
 static struct snd_soc_dai_link msm_wsa_cdc_dma_be_dai_links[] = {
@@ -695,6 +696,7 @@ static struct snd_soc_dai_link msm_wsa_cdc_dma_be_dai_links[] = {
 		.ops = &msm_common_be_ops,
 		SND_SOC_DAILINK_REG(wsa_dma_tx1),
 	},
+#if 0
 	{
 		.name = LPASS_BE_WSA_CDC_DMA_TX_0,
 		.stream_name = LPASS_BE_WSA_CDC_DMA_TX_0,
