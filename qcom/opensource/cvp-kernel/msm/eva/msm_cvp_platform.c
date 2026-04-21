@@ -41,7 +41,7 @@ static struct msm_cvp_common_data default_common_data[] = {
 	},
 };
 
-static struct msm_cvp_common_data sm8450_common_data[] = {
+static struct msm_cvp_common_data sm8475_common_data[] = {
 	{
 		.key = "qcom,auto-pil",
 		.value = 1,
@@ -114,17 +114,17 @@ static struct msm_cvp_platform_data default_data = {
 	.ubwc_config = 0x0,
 };
 
-static struct msm_cvp_platform_data sm8450_data = {
-	.common_data = sm8450_common_data,
-	.common_data_length =  ARRAY_SIZE(sm8450_common_data),
+static struct msm_cvp_platform_data sm8475_data = {
+	.common_data = sm8475_common_data,
+	.common_data_length =  ARRAY_SIZE(sm8475_common_data),
 	.sku_version = 0,
 	.vpu_ver = VPU_VERSION_5,
 	.ubwc_config = kona_ubwc_data,
 };
 
 static struct msm_cvp_platform_data fillmore_data = {
-    .common_data = sm8450_common_data,
-    .common_data_length =  ARRAY_SIZE(sm8450_common_data),
+    .common_data = sm8475_common_data,
+    .common_data_length =  ARRAY_SIZE(sm8475_common_data),
     .sku_version = 0,
     .vpu_ver = VPU_VERSION_5,
     .ubwc_config = fillmore_ubwc_data,
@@ -134,7 +134,7 @@ static struct msm_cvp_platform_data fillmore_data = {
 static const struct of_device_id msm_cvp_dt_match[] = {
 	{
 		.compatible = "qcom,waipio-cvp",
-		.data = &sm8450_data,
+		.data = &sm8475_data,
 	},
 	{
 		.compatible = "qcom,fillmore-cvp",
