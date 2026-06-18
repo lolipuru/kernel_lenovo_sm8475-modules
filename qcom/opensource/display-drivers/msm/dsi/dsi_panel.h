@@ -52,6 +52,11 @@
 #define MIPI_DSI_MSG_BATCH_COMMAND BIT(6)
 #define MIPI_DSI_MSG_UNICAST_COMMAND BIT(7)
 
+#ifdef CONFIG_TARGET_PRODUCT_HALO
+#define DSI_DC_CMD_COUNT  8
+#define DSI_DC_CMD_STRIDE 64
+#endif
+
 enum dsi_panel_rotation {
 	DSI_PANEL_ROTATE_NONE = 0,
 	DSI_PANEL_ROTATE_HV_FLIP,
@@ -219,6 +224,7 @@ struct dsi_panel_spr_info {
 };
 
 struct dsi_panel;
+struct dsi_display;
 
 struct dsi_panel_ops {
 	int (*pinctrl_init)(struct dsi_panel *panel);
@@ -301,6 +307,22 @@ struct dsi_panel {
 
 	bool hbm_status;
 };
+
+#ifdef CONFIG_TARGET_PRODUCT_HALO
+struct dsi_dc_cmd_entry {
+	struct dsi_cmd_desc *cmds;
+    u32 post_wait_ms;
+    u32 count;
+};
+
+struct dsi_dc_cmd_set {
+    struct dsi_dc_cmd_entry cmds[DSI_DC_CMD_COUNT];
+};
+
+extern int dsi_dc_read;
+extern struct dsi_dc_cmd_set dc_on_cmds;
+extern struct dsi_dc_cmd_set dc_off_cmds;
+#endif
 
 static inline bool dsi_panel_ulps_feature_enabled(struct dsi_panel *panel)
 {
@@ -438,4 +460,14 @@ void dsi_panel_destroy_cmd_packets(struct dsi_panel_cmd_set *set);
 void dsi_panel_dealloc_cmd_packets(struct dsi_panel_cmd_set *set);
 
 int dsi_panel_hbm_setup(struct dsi_panel *panel, bool enable);
+#if defined(CONFIG_TARGET_PRODUCT_HALO) || defined(CONFIG_TARGET_PRODUCT_DIABLO)
+int dsi_panel_loading_setup(struct dsi_panel *panel, bool status);
+#endif
+#ifdef CONFIG_TARGET_PRODUCT_HALO
+int dsi_panel_dc_setup(struct dsi_panel *panel, bool enable);
+void dsi_panel_dc_cmd_set(struct dsi_panel *panel,
+                           struct dsi_dc_cmd_set *set);
+int  dsi_display_dcs_60hz_dc_on(struct dsi_display *display);
+#endif
+
 #endif /* _DSI_PANEL_H_ */

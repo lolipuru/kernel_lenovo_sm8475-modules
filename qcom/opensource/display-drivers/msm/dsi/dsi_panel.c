@@ -45,6 +45,12 @@
 #define RSCC_MODE_THRESHOLD_TIME_US 40
 #define DCS_COMMAND_THRESHOLD_TIME_US 40
 
+#ifdef CONFIG_TARGET_PRODUCT_HALO
+int dsi_dc_read = 0;
+struct dsi_dc_cmd_set dc_on_cmds;
+struct dsi_dc_cmd_set dc_off_cmds;
+#endif
+
 static void dsi_dce_prepare_pps_header(char *buf, u32 pps_delay_ms)
 {
 	char *bp;
@@ -737,6 +743,79 @@ int dsi_panel_hbm_setup(struct dsi_panel *panel, bool status)
 
 	return rc;
 }
+
+#if defined(CONFIG_TARGET_PRODUCT_HALO) || defined(CONFIG_TARGET_PRODUCT_DIABLO)
+int dsi_panel_loading_setup(struct dsi_panel *panel, bool status)
+{
+	int rc = 0;
+
+	if (!panel) {
+		pr_err("Invalid params\n");
+		return -EINVAL;
+	}
+
+	pr_info("%s, %d\n", __func__, status);
+	if (status) {
+		rc = dsi_panel_tx_cmd_set(panel, DSI_CMD_SET_LOADING_ON);
+		if (rc)
+			pr_err("transmit hbm on cmd fail!\n");
+	} else {
+		rc = dsi_panel_tx_cmd_set(panel, DSI_CMD_SET_LOADING_OFF);
+		if (rc)
+			pr_err("transmit hbm off cmd fail!\n");
+	}
+
+	return rc;
+}
+#endif
+
+#ifdef CONFIG_TARGET_PRODUCT_HALO
+void dsi_panel_dc_cmd_set(struct dsi_panel *panel,
+                                  struct dsi_dc_cmd_set *set)
+{
+    int rc, i;
+
+    if (!panel || !panel->host)
+        return;
+
+    for (i = 0; i < 8; i++) {
+        rc = dsi_host_transfer_sub(panel->host, set->cmds[i].cmds);
+        if (rc < 0) {
+            DSI_ERR("failed to set dc cmds, rc=%d\n", rc);
+            return;
+        }
+        if (set->cmds[i].post_wait_ms)
+            usleep_range(set->cmds[i].post_wait_ms * 1000,
+                         set->cmds[i].post_wait_ms * 1000 + 10);
+    }
+}
+
+int dsi_panel_dc_setup(struct dsi_panel *panel, bool enable)
+{
+    int rc = 0;
+
+    if (!panel) {
+        pr_err("Invalid params\n");
+        return -EINVAL;
+    }
+
+    pr_debug("%s: enable=%d\n", __func__, enable);
+
+    if (dsi_dc_read == 1) {
+        if (enable) {
+            rc = dsi_panel_tx_cmd_set(panel, DSI_CMD_SET_DC_ON);
+            if (rc)
+                pr_err("failed to transmit DC ON cmd, rc=%d\n", rc);
+        } else {
+            rc = dsi_panel_tx_cmd_set(panel, DSI_CMD_SET_DC_OFF);
+            if (rc)
+                pr_err("failed to transmit DC OFF cmd, rc=%d\n", rc);
+        }
+    }
+
+    return rc;
+}
+#endif
 
 int dsi_panel_set_backlight(struct dsi_panel *panel, u32 bl_lvl)
 {
@@ -2036,6 +2115,14 @@ const char *cmd_set_prop_map[DSI_CMD_SET_MAX] = {
 	"qcom,mdss-dsi-qsync-off-commands",
 	"qcom,mdss-dsi-hbm-on-command",
 	"qcom,mdss-dsi-hbm-off-command",
+#if defined(CONFIG_TARGET_PRODUCT_HALO) || defined(CONFIG_TARGET_PRODUCT_DIABLO)
+	"qcom,mdss-dsi-loading-on-command",
+	"qcom,mdss-dsi-loading-off-command",
+#endif
+#ifdef CONFIG_TARGET_PRODUCT_HALO
+	"qcom,mdss-dsi-dc-on-command",
+	"qcom,mdss-dsi-dc-off-command",
+#endif
 #ifdef CONFIG_TARGET_PRODUCT_ASPHALT
  	"qcom,mdss-dsi-dispparam-pen-144hz-disable-control-command",
  	"qcom,mdss-dsi-dispparam-pen-144hz-switch-command",
@@ -2074,6 +2161,14 @@ const char *cmd_set_state_map[DSI_CMD_SET_MAX] = {
 	"qcom,mdss-dsi-qsync-off-commands-state",
 	"qcom,mdss-dsi-hbm-on-state",
 	"qcom,mdss-dsi-hbm-off-state",
+#if defined(CONFIG_TARGET_PRODUCT_HALO) || defined(CONFIG_TARGET_PRODUCT_DIABLO)
+	"qcom,mdss-dsi-loading-on-command-state",
+	"qcom,mdss-dsi-loading-off-command-state",
+#endif
+#ifdef CONFIG_TARGET_PRODUCT_HALO
+	"qcom,mdss-dsi-dc-on-command-state",
+	"qcom,mdss-dsi-dc-off-command-state",
+#endif
 #ifdef CONFIG_TARGET_PRODUCT_ASPHALT
 	"qcom,mdss-dsi-dispparam-pen-144hz-disable-control-command-state",
 	"qcom,mdss-dsi-dispparam-pen-144hz-switch-command-state",
@@ -4960,6 +5055,12 @@ int dsi_panel_switch_cmd_mode_in(struct dsi_panel *panel)
 	return rc;
 }
 
+#ifdef CONFIG_TARGET_PRODUCT_DIABLO
+extern unsigned int old_fps;
+extern unsigned int now_fps;
+extern int dsi_gamma_read;
+#endif
+
 int dsi_panel_switch(struct dsi_panel *panel)
 {
 	int rc = 0;
@@ -4969,15 +5070,26 @@ int dsi_panel_switch(struct dsi_panel *panel)
 		return -EINVAL;
 	}
 
-	mutex_lock(&panel->panel_lock);
+    mutex_lock(&panel->panel_lock);
 
-	rc = dsi_panel_tx_cmd_set(panel, DSI_CMD_SET_TIMING_SWITCH);
-	if (rc)
-		DSI_ERR("[%s] failed to send DSI_CMD_SET_TIMING_SWITCH cmds, rc=%d\n",
-		       panel->name, rc);
+    rc = dsi_panel_tx_cmd_set(panel, DSI_CMD_SET_TIMING_SWITCH);
+    if (rc)
+        DSI_ERR("[%s] failed to send DSI_CMD_SET_TIMING_SWITCH cmds, rc=%d\n",
+               panel->name, rc);
 
-	mutex_unlock(&panel->panel_lock);
-	return rc;
+#ifdef CONFIG_TARGET_PRODUCT_DIABLO
+    if (dsi_gamma_read == 1) {
+        if ((old_fps != 90) && (now_fps == 90)) {
+            mipi_dsi_dcs_90hz_gamma_set(&panel->mipi_device);
+        } else if ((old_fps == 90) && (now_fps != 90)) {
+            mipi_dsi_dcs_120hz_gamma_set(&panel->mipi_device);
+        }
+        old_fps = now_fps;
+    }
+#endif
+
+    mutex_unlock(&panel->panel_lock);
+    return rc;
 }
 
 int dsi_panel_post_switch(struct dsi_panel *panel)

@@ -838,4 +838,18 @@ bool dsi_display_mode_match(const struct dsi_display_mode *mode1,
 
 int dsi_display_hbm_setup(struct dsi_display *display, int enable);
 
+#if defined(CONFIG_TARGET_PRODUCT_HALO) || defined(CONFIG_TARGET_PRODUCT_DIABLO)
+int dsi_display_read_gamma(struct drm_connector *connector, void *display);
+int dsi_display_read_90hz_gamma(struct dsi_display *display);
+int dsi_display_read_120hz_gamma(struct dsi_display *display);
+int mipi_dsi_dcs_90hz_gamma_read1_enable(struct mipi_dsi_device *dsi);
+int mipi_dsi_dcs_90hz_gamma_read2_enable(struct mipi_dsi_device *dsi);
+int mipi_dsi_dcs_90hz_gamma_read_disable(struct mipi_dsi_device *dsi);
+int mipi_dsi_dcs_120hz_gamma_read1_enable(struct mipi_dsi_device *dsi);
+int mipi_dsi_dcs_120hz_gamma_read2_enable(struct mipi_dsi_device *dsi);
+int mipi_dsi_dcs_120hz_gamma_read_disable(struct mipi_dsi_device *dsi);
+int mipi_dsi_dcs_90hz_gamma_set(struct mipi_dsi_device *dsi);
+int mipi_dsi_dcs_120hz_gamma_set(struct mipi_dsi_device *dsi);
+#endif
+
 #endif /* _DSI_DISPLAY_H_ */
