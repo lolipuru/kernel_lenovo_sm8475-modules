@@ -5076,8 +5076,10 @@ static int dsi_display_dfps_calc_front_porch(
 	else
 		b_fp_new = b_fp - add_porches;
 
+#ifdef CONFIG_TARGET_PRODUCT_ASPHALT
 	if (new_fps == 144 && b_fp_new % 2 == 0)
 		b_fp_new = b_fp_new - 1;
+#endif
 
 	DSI_DEBUG("fps %u a %u b %u b_fp %u new_fp %d\n",
 			new_fps, a_total, b_total, b_fp, b_fp_new);
@@ -7198,7 +7200,9 @@ int dsi_display_get_modes(struct dsi_display *display,
 	int i, start, end, rc = -EINVAL;
 	int dsc_modes = 0, nondsc_modes = 0;
 	struct dsi_qsync_capabilities *qsync_caps;
+#ifdef CONFIG_TARGET_PRODUCT_ASPHALT
 	struct dsi_dfps_capabilities *fps_type = &display->panel->dfps_caps;
+#endif
 
 	if (!display || !out_modes) {
 		DSI_ERR("Invalid params\n");
@@ -7377,11 +7381,13 @@ int dsi_display_get_modes(struct dsi_display *display,
 				sub_mode->priv_info->qsync_min_fps = sub_mode->timing.qsync_min_fps;
 			}
 
+#ifdef CONFIG_TARGET_PRODUCT_ASPHALT
 			if (sub_mode->timing.refresh_rate == 144) {
 				fps_type->type = DSI_DFPS_IMMEDIATE_HFP;
 			} else {
 				fps_type->type = DSI_DFPS_IMMEDIATE_VFP;
 			}
+#endif
 			dsi_display_get_dfps_timing(display, sub_mode,
 					curr_refresh_rate);
 			sub_mode->panel_mode_caps = DSI_OP_VIDEO_MODE;

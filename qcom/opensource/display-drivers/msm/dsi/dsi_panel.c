@@ -19,8 +19,10 @@
 #include "sde_dsc_helper.h"
 #include "sde_vdc_helper.h"
 
+#ifdef CONFIG_TARGET_PRODUCT_ASPHALT
 #include <linux/input/touch_common.h>
 #include <linux/input/ktz8866_common.h>
+#endif
 
 /**
  * topology is currently defined by a set of following 3 values:
@@ -372,12 +374,14 @@ static int dsi_panel_power_on(struct dsi_panel *panel)
 		goto error_disable_vregs;
 	}
 
+#ifdef CONFIG_TARGET_PRODUCT_ASPHALT
 	if (gpio_is_valid(panel->reset_config.bias_enp_gpio))
         	gpio_set_value(panel->reset_config.bias_enp_gpio, 1); //362
 
 	if (gpio_is_valid(panel->reset_config.bias_enn_gpio))
         	gpio_set_value(panel->reset_config.bias_enn_gpio, 1); //366
 	msleep(10);
+#endif
 
 	rc = dsi_panel_reset(panel);
 	if (rc) {
@@ -407,9 +411,12 @@ static int dsi_panel_power_off(struct dsi_panel *panel)
 {
 	int rc = 0;
 
-//	if (gpio_is_valid(panel->reset_config.disp_en_gpio))
-//		gpio_set_value(panel->reset_config.disp_en_gpio, 0);
+#ifndef CONFIG_TARGET_PRODUCT_ASPHALT
+	if (gpio_is_valid(panel->reset_config.disp_en_gpio))
+		gpio_set_value(panel->reset_config.disp_en_gpio, 0);
+#endif
 
+#ifdef CONFIG_TARGET_PRODUCT_ASPHALT
 	int gesture_flag = get_gesture_flag();
 	if (gesture_flag)
 	{
@@ -437,7 +444,7 @@ static int dsi_panel_power_off(struct dsi_panel *panel)
         		gpio_set_value(panel->reset_config.bias_enp_gpio, 0); //362
 
 	}
-
+#endif
 
 	if (gpio_is_valid(panel->reset_config.lcd_mode_sel_gpio))
 		gpio_set_value(panel->reset_config.lcd_mode_sel_gpio, 0);
@@ -455,12 +462,16 @@ static int dsi_panel_power_off(struct dsi_panel *panel)
 		       rc);
 	}
 
+#ifdef CONFIG_TARGET_PRODUCT_ASPHALT
 	if(!gesture_flag){
+#endif
 	rc = dsi_pwr_enable_regulator(&panel->power_info, false);
 	if (rc)
 		DSI_ERR("[%s] failed to enable vregs, rc=%d\n",
 				panel->name, rc);
+#ifdef CONFIG_TARGET_PRODUCT_ASPHALT
 	}
+#endif
 	return rc;
 }
 static int dsi_panel_tx_cmd_set(struct dsi_panel *panel,
@@ -585,6 +596,7 @@ static int dsi_panel_wled_register(struct dsi_panel *panel,
 	return 0;
 }
 
+#ifdef CONFIG_TARGET_PRODUCT_ASPHALT
 static int dsi_panel_erternal_register(struct dsi_panel *panel,
                 struct dsi_backlight_config *bl)
 {
@@ -600,6 +612,7 @@ static int dsi_panel_erternal_register(struct dsi_panel *panel,
         bl->bl_dev = dev;
         return 0;
 }
+#endif
 
 static int mipi_dsi_dcs_subtype_set_display_brightness(struct mipi_dsi_device *dsi,
 	u32 bl_lvl, u32 bl_dcs_subtype)
@@ -742,7 +755,9 @@ int dsi_panel_set_backlight(struct dsi_panel *panel, u32 bl_lvl)
 		rc = dsi_panel_update_backlight(panel, bl_lvl);
 		break;
 	case DSI_BACKLIGHT_EXTERNAL:
+#ifdef CONFIG_TARGET_PRODUCT_ASPHALT
 		rc = bkl_backlight_device_set_brightness(bl->bl_dev,bl_lvl);
+#endif
 		break;
 	case DSI_BACKLIGHT_PWM:
 		rc = dsi_panel_update_pwm_backlight(panel, bl_lvl);
@@ -882,7 +897,9 @@ static int dsi_panel_bl_register(struct dsi_panel *panel)
 	case DSI_BACKLIGHT_DCS:
 		break;
 	case DSI_BACKLIGHT_EXTERNAL:
+#ifdef CONFIG_TARGET_PRODUCT_ASPHALT
 		rc = dsi_panel_erternal_register(panel,bl);
+#endif
 		break;
 	case DSI_BACKLIGHT_PWM:
 		rc = dsi_panel_pwm_register(panel);
@@ -2019,12 +2036,14 @@ const char *cmd_set_prop_map[DSI_CMD_SET_MAX] = {
 	"qcom,mdss-dsi-qsync-off-commands",
 	"qcom,mdss-dsi-hbm-on-command",
 	"qcom,mdss-dsi-hbm-off-command",
+#ifdef CONFIG_TARGET_PRODUCT_ASPHALT
  	"qcom,mdss-dsi-dispparam-pen-144hz-disable-control-command",
  	"qcom,mdss-dsi-dispparam-pen-144hz-switch-command",
  	"qcom,mdss-dsi-dispparam-pen-144hz-enable-touch-command",
 	"qcom,mdss-dsi-dispparam-pen-others-enable-control-command",
 	"qcom,mdss-dsi-dispparam-pen-others-switch-command",
 	"qcom,mdss-dsi-dispparam-pen-144hz-power-on-command",
+#endif
 };
 
 const char *cmd_set_state_map[DSI_CMD_SET_MAX] = {
@@ -2055,12 +2074,14 @@ const char *cmd_set_state_map[DSI_CMD_SET_MAX] = {
 	"qcom,mdss-dsi-qsync-off-commands-state",
 	"qcom,mdss-dsi-hbm-on-state",
 	"qcom,mdss-dsi-hbm-off-state",
+#ifdef CONFIG_TARGET_PRODUCT_ASPHALT
 	"qcom,mdss-dsi-dispparam-pen-144hz-disable-control-command-state",
 	"qcom,mdss-dsi-dispparam-pen-144hz-switch-command-state",
 	"qcom,mdss-dsi-dispparam-pen-144hz-enable-touch-command-state",
 	"qcom,mdss-dsi-dispparam-pen-others-enable-control-command-state",
 	"qcom,mdss-dsi-dispparam-pen-others-switch-command-state",
 	"qcom,mdss-dsi-dispparam-pen-144hz-power-on-command-state",
+#endif
 };
 
 int dsi_panel_get_cmd_pkt_count(const char *data, u32 length, u32 *cnt)
@@ -2504,6 +2525,7 @@ static int dsi_panel_parse_gpios(struct dsi_panel *panel)
 			panel->reset_config.reset_gpio);
 	}
 
+#ifdef CONFIG_TARGET_PRODUCT_ASPHALT
     panel->reset_config.bias_enp_gpio = utils->get_named_gpio(utils->data,
 		"qcom,bias-enp-gpio", 0);
     if (!gpio_is_valid(panel->reset_config.bias_enp_gpio))
@@ -2515,6 +2537,7 @@ static int dsi_panel_parse_gpios(struct dsi_panel *panel)
         if (!gpio_is_valid(panel->reset_config.bias_enn_gpio))
 			DSI_DEBUG("[%s] bias-enn-gpio is not set, rc=%d\n",
             panel->name, rc);
+#endif
 
 	panel->reset_config.disp_en_gpio = utils->get_named_gpio(utils->data,
 						"qcom,5v-boost-gpio",
@@ -4656,6 +4679,7 @@ error:
 	return rc;
 }
 
+#ifdef CONFIG_TARGET_PRODUCT_ASPHALT
 int dsi_panel_match_fps_pen_setting(struct dsi_panel *panel,
                 struct dsi_display_mode *adj_mode,int stages)
 {
@@ -4694,6 +4718,7 @@ int dsi_panel_match_fps_pen_setting(struct dsi_panel *panel,
 	return rc;
 
 }
+#endif
 
 static int dsi_panel_roi_prepare_dcs_cmds(struct dsi_panel_cmd_set *set,
 		struct dsi_rect *roi, int ctrl_idx, int unicast)
@@ -5009,10 +5034,13 @@ int dsi_panel_enable(struct dsi_panel *panel)
 		}
 	}
 	panel->panel_initialized = true;
+#ifdef CONFIG_TARGET_PRODUCT_ASPHALT
 	DSI_ERR ("%s\n", __func__);
+#endif
 
 error:
 
+#ifdef CONFIG_TARGET_PRODUCT_ASPHALT
     if (panel->cur_mode->timing.refresh_rate == 144) {
 		rc = dsi_panel_tx_cmd_set(panel, DSI_CMD_SET_DISP_PEN_144HZ_POWER_ON);
 		if (rc) {
@@ -5020,6 +5048,7 @@ error:
             panel->name, rc);
         }
     }
+#endif
 
 	mutex_unlock(&panel->panel_lock);
 	return rc;

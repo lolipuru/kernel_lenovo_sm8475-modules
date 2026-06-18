@@ -166,7 +166,9 @@ struct dsi_backlight_config {
 	/* DCS params */
 	bool lp_mode;
 
+#ifdef CONFIG_TARGET_PRODUCT_ASPHALT
 	struct backlight_device *bl_dev;
+#endif
 };
 
 struct dsi_reset_seq {
@@ -183,8 +185,10 @@ struct dsi_panel_reset_config {
 	int lcd_mode_sel_gpio;
 	u32 mode_sel_state;
 
+#ifdef CONFIG_TARGET_PRODUCT_ASPHALT
 	int bias_enp_gpio;
     int bias_enn_gpio;
+#endif
 };
 
 enum esd_check_status_mode {

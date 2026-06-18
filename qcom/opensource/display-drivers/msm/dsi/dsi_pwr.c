@@ -11,7 +11,9 @@
 #include "dsi_parser.h"
 #include "dsi_defs.h"
 
+#ifdef CONFIG_TARGET_PRODUCT_ASPHALT
 #include <linux/input/touch_common.h>
+#endif
 
 /*
  * dsi_pwr_parse_supply_node() - parse power supply node from root device node
@@ -369,7 +371,9 @@ int dsi_pwr_get_dt_vreg_data(struct device *dev,
 int dsi_pwr_enable_regulator(struct dsi_regulator_info *regs, bool enable)
 {
 	int rc = 0;
+#ifdef CONFIG_TARGET_PRODUCT_ASPHALT
 	int gesture_flag = get_gesture_flag();
+#endif
 
 	if (regs->count == 0) {
 		DSI_DEBUG("No valid regulators to enable\n");
@@ -382,7 +386,11 @@ int dsi_pwr_enable_regulator(struct dsi_regulator_info *regs, bool enable)
 	}
 
 	if (enable) {
+#ifdef CONFIG_TARGET_PRODUCT_ASPHALT
 		if ((regs->refcount == 0) || (!gesture_flag)) {
+#else
+		if  (regs->refcount == 0) {
+#endif
 			rc = dsi_pwr_enable_vregs(regs, true);
 			if (rc)
 				DSI_ERR("failed to enable regulators\n");
@@ -394,7 +402,11 @@ int dsi_pwr_enable_regulator(struct dsi_regulator_info *regs, bool enable)
 					regs->vregs->vreg_name);
 		} else {
 			regs->refcount--;
+#ifdef CONFIG_TARGET_PRODUCT_ASPHALT
 			if ((regs->refcount == 0) || (!gesture_flag)) {
+#else
+			if  (regs->refcount == 0) {
+#endif
 				rc = dsi_pwr_enable_vregs(regs, false);
 				if (rc)
 					DSI_ERR("failed to disable vregs\n");

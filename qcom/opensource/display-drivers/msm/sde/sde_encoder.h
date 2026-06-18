@@ -30,8 +30,10 @@
 #include "sde_connector.h"
 #include "sde_power_handle.h"
 
+#ifdef CONFIG_TARGET_PRODUCT_ASPHALT
 struct dsi_panel;
 struct dsi_display_mode;
+#endif
 
 /*
  * Two to anticipate panels that can do cmd/vid dynamic switching
@@ -687,7 +689,9 @@ static inline bool sde_encoder_is_widebus_enabled(struct drm_encoder *drm_enc)
 
 void sde_encoder_add_data_to_minidump_va(struct drm_encoder *drm_enc);
 
+#ifdef CONFIG_TARGET_PRODUCT_ASPHALT
 int sde_encoder_vid_wait_for_active(struct drm_encoder *drm_enc);
 int dsi_panel_match_fps_pen_setting(struct dsi_panel *panel,struct dsi_display_mode *adj_mode,int stages);
+#endif
 
 #endif /* __SDE_ENCODER_H__ */

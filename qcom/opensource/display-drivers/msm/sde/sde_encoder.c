@@ -43,9 +43,11 @@
 #include "sde_hw_qdss.h"
 #include "sde_encoder_dce.h"
 #include "sde_vm.h"
+#ifdef CONFIG_TARGET_PRODUCT_ASPHALT
 #include "../dsi/dsi_panel.h"
 #include "../dsi/dsi_display.h"
 #include "../dsi/dsi_drm.h"
+#endif
 
 #define SDE_DEBUG_ENC(e, fmt, ...) SDE_DEBUG("enc%d " fmt,\
 		(e) ? (e)->base.base.id : -1, ##__VA_ARGS__)
@@ -4565,10 +4567,12 @@ void sde_encoder_kickoff(struct drm_encoder *drm_enc, bool config_changed)
 {
 	struct sde_encoder_virt *sde_enc;
 	struct sde_encoder_phys *phys;
+#ifdef CONFIG_TARGET_PRODUCT_ASPHALT
 	struct drm_bridge *bridge;
 	struct dsi_bridge *c_bridge;
 	struct dsi_display *dsi_display;
 	struct dsi_display_mode adj_mode;
+#endif
 	unsigned int i;
 
 	if (!drm_enc) {
@@ -4579,6 +4583,7 @@ void sde_encoder_kickoff(struct drm_encoder *drm_enc, bool config_changed)
 	sde_enc = to_sde_encoder_virt(drm_enc);
 
 	SDE_DEBUG_ENC(sde_enc, "\n");
+#ifdef CONFIG_TARGET_PRODUCT_ASPHALT
 	if (sde_enc->disp_info.intf_type == DRM_MODE_CONNECTOR_DSI) {
 		bridge = drm_bridge_chain_get_first_bridge(drm_enc);
 		if (!bridge) {
@@ -4589,6 +4594,7 @@ void sde_encoder_kickoff(struct drm_encoder *drm_enc, bool config_changed)
 		adj_mode = c_bridge->dsi_mode;
 		dsi_display = c_bridge->display;
 	}
+#endif
 
 	if (sde_enc->delay_kickoff) {
 		u32 loop_count = 20;
@@ -4603,6 +4609,7 @@ void sde_encoder_kickoff(struct drm_encoder *drm_enc, bool config_changed)
 		SDE_EVT32(DRMID(drm_enc), i, SDE_EVTLOG_FUNC_CASE1);
 	}
 
+#ifdef CONFIG_TARGET_PRODUCT_ASPHALT
 	if (dsi_display && dsi_display->panel && (adj_mode.dsi_mode_flags & DSI_MODE_FLAG_VRR)) {
 		mutex_lock(&dsi_display->panel->panel_lock);
 		//sde_encoder_wait_for_event(drm_enc,MSM_ENC_VBLANK);
@@ -4612,6 +4619,7 @@ void sde_encoder_kickoff(struct drm_encoder *drm_enc, bool config_changed)
 		sde_encoder_vid_wait_for_active(drm_enc);
 
 	}
+#endif
 
 	/* All phys encs are ready to go, trigger the kickoff */
 	_sde_encoder_kickoff_phys(sde_enc, config_changed);
@@ -4623,6 +4631,7 @@ void sde_encoder_kickoff(struct drm_encoder *drm_enc, bool config_changed)
 			phys->ops.handle_post_kickoff(phys);
 	}
 
+#ifdef CONFIG_TARGET_PRODUCT_ASPHALT
 	if (dsi_display && dsi_display->panel && (adj_mode.dsi_mode_flags & DSI_MODE_FLAG_VRR)) {
 		dsi_panel_match_fps_pen_setting(dsi_display->panel, &adj_mode,2);
 
@@ -4633,6 +4642,7 @@ void sde_encoder_kickoff(struct drm_encoder *drm_enc, bool config_changed)
 		}
 		mutex_unlock(&dsi_display->panel->panel_lock);
 	}
+#endif
 
 	if (sde_enc->autorefresh_solver_disable &&
 			!_sde_encoder_is_autorefresh_enabled(sde_enc))
@@ -5508,6 +5518,7 @@ fail:
 	return ERR_PTR(ret);
 }
 
+#ifdef CONFIG_TARGET_PRODUCT_ASPHALT
 int sde_encoder_vid_wait_for_active(
 			struct drm_encoder *drm_enc)
 {
@@ -5538,6 +5549,7 @@ int sde_encoder_vid_wait_for_active(
 	}
 	return -EINVAL;
 }
+#endif
 
 int sde_encoder_wait_for_event(struct drm_encoder *drm_enc,
 	enum msm_event_wait event)
