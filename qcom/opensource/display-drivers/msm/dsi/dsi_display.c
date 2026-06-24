@@ -855,6 +855,64 @@ static void dsi_display_parse_te_data(struct dsi_display *display)
 
 #if defined(CONFIG_TARGET_PRODUCT_HALO) || defined(CONFIG_TARGET_PRODUCT_DIABLO)
 
+#ifdef CONFIG_TARGET_PRODUCT_HALO
+#define UNLOCK_KEY_PAGE0  { 0x55, 0xAA, 0x52, 0x08, 0x00 }
+#define UNLOCK_KEY_PAGE4  { 0x55, 0xAA, 0x52, 0x08, 0x04 }
+
+static char dc_preamble_payload[] = {
+    0xF0,
+    0x55, 0xAA, 0x52, 0x08, 0x00,
+};
+
+static char dc_b2_payload[] = {
+    0xB2,
+    0x00,
+};
+
+static char dc_6f_payload[] = {
+    0x6F,
+    0x00,
+};
+
+static char dc_b2_ext_payload[] = {
+    0xB2,
+    0x30, 0x20, 0x85, 0x08, 0x25, 0x08,
+};
+
+static char dc_b3_on_payload[] = {
+    0xB3,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x01, 0xEF, 0x02, 0xD2, 0x02, 0xD2, 0x04, 0x3B,
+    0x04, 0x3B, 0x05, 0x08, 0x05, 0x08, 0x05, 0x09,
+    0x05, 0x09, 0x07, 0xB1, 0x07, 0xB1, 0x0C, 0x7D,
+    0x0C, 0x7D, 0x0F, 0xFF,
+};
+
+static char dc_f0_page4_payload[] = {
+    0xF0,
+    0x55, 0xAA, 0x52, 0x08, 0x04,
+};
+
+static char dc_58_on_payload[] = {
+    0x58,
+    0x00,
+};
+
+static char dc_58_off_payload[] = {
+    0x58,
+    0x00,
+};
+
+static char dc_b3_off_payload[] = {
+    0xB3,
+    0x00, 0x09, 0x00, 0xE1, 0x00, 0xE1, 0x01, 0xEF,
+    0x04, 0x3B, 0x05, 0x08, 0x05, 0x08, 0x05, 0x09,
+    0x05, 0x09, 0x07, 0xB1, 0x07, 0xB1, 0x0C, 0x7D,
+    0x0C, 0x7D, 0x0F, 0xFF,
+    0x05, 0x09, 0x07, 0xB1, 0x07, 0xB1, 0x0C, 0x7D,
+};
+#endif
+
 int dsi_gamma_read = 0;
 
 u8 gamma_90hz_1[210]; //read 200
@@ -1831,6 +1889,127 @@ release_panel_lock:
 
 	return rc;
 }
+
+#ifdef CONFIG_TARGET_PRODUCT_HALO
+int dsi_display_dc_creat_cmd(struct dsi_display *display, struct dsi_panel *panel)
+{
+    int rc = 0;
+
+    rc = dsi_panel_create_cmd_packets(dc_preamble_payload,
+                      ARRAY_SIZE(dc_preamble_payload),
+                      1,
+                      &dc_on_cmds);
+    if (rc)
+        goto error;
+
+    rc = dsi_panel_create_cmd_packets(dc_b2_payload,
+                      ARRAY_SIZE(dc_b2_payload),
+                      1,
+                      &panel->cmd_sets[DSI_CMD_SET_DC_ON].cmds[1]);
+    if (rc)
+        goto error;
+
+    rc = dsi_panel_create_cmd_packets(dc_6f_payload,
+                      ARRAY_SIZE(dc_6f_payload),
+                      1,
+                      &panel->cmd_sets[DSI_CMD_SET_DC_ON].cmds[2]);
+    if (rc)
+        goto error;
+
+    rc = dsi_panel_create_cmd_packets(dc_b2_ext_payload,
+                      ARRAY_SIZE(dc_b2_ext_payload),
+                      1,
+                      &panel->cmd_sets[DSI_CMD_SET_DC_ON].cmds[3]);
+    if (rc)
+        goto error;
+
+    rc = dsi_panel_create_cmd_packets(dc_b3_on_payload,
+                      ARRAY_SIZE(dc_b3_on_payload),
+                      1,
+                      &panel->cmd_sets[DSI_CMD_SET_DC_ON].cmds[4]);
+    if (rc)
+        goto error;
+
+    rc = dsi_panel_create_cmd_packets(dc_f0_page4_payload,
+                      ARRAY_SIZE(dc_f0_page4_payload),
+                      1,
+                      &panel->cmd_sets[DSI_CMD_SET_DC_ON].cmds[5]);
+    if (rc)
+        goto error;
+
+    rc = dsi_panel_create_cmd_packets(cmd7_on.cmds->msg.tx_buf,
+                      cmd7_on.cmds->msg.tx_len,
+                      1,
+                      &panel->cmd_sets[DSI_CMD_SET_DC_ON].cmds[6]);
+    if (rc)
+        goto error;
+
+    rc = dsi_panel_create_cmd_packets(dc_58_on_payload,
+                      ARRAY_SIZE(dc_58_on_payload),
+                      1,
+                      &panel->cmd_sets[DSI_CMD_SET_DC_ON].cmds[7]);
+    if (rc)
+        goto error;
+
+    rc = dsi_panel_create_cmd_packets(dc_preamble_payload,
+                      ARRAY_SIZE(dc_preamble_payload),
+                      1,
+                      &dc_off_cmds);
+    if (rc)
+        goto error;
+
+    rc = dsi_panel_create_cmd_packets(dc_b2_payload,
+                      ARRAY_SIZE(dc_b2_payload),
+                      1,
+                      &panel->cmd_sets[DSI_CMD_SET_DC_OFF].cmds[1]);
+    if (rc)
+        goto error;
+
+    rc = dsi_panel_create_cmd_packets(dc_b3_off_payload,
+                      ARRAY_SIZE(dc_b3_off_payload),
+                      1,
+                      &panel->cmd_sets[DSI_CMD_SET_DC_OFF].cmds[2]);
+    if (rc)
+        goto error;
+
+    rc = dsi_panel_create_cmd_packets(dc_6f_payload,
+                      ARRAY_SIZE(dc_6f_payload),
+                      1,
+                      &panel->cmd_sets[DSI_CMD_SET_DC_OFF].cmds[3]);
+    if (rc)
+        goto error;
+
+    rc = dsi_panel_create_cmd_packets(dc_b2_ext_payload,
+                      ARRAY_SIZE(dc_b2_ext_payload),
+                      1,
+                      &panel->cmd_sets[DSI_CMD_SET_DC_OFF].cmds[4]);
+    if (rc)
+        goto error;
+
+    rc = dsi_panel_create_cmd_packets(dc_f0_page4_payload,
+                      ARRAY_SIZE(dc_f0_page4_payload),
+                      1,
+                      &panel->cmd_sets[DSI_CMD_SET_DC_OFF].cmds[5]);
+    if (rc)
+        goto error;
+
+    rc = dsi_panel_create_cmd_packets(cmd7_off.cmds->msg.tx_buf,
+                      cmd7_off.cmds->msg.tx_len,
+                      1,
+                      &panel->cmd_sets[DSI_CMD_SET_DC_OFF].cmds[6]);
+    if (rc)
+        goto error;
+
+    rc = dsi_panel_create_cmd_packets(dc_58_off_payload,
+                      ARRAY_SIZE(dc_58_off_payload),
+                      1,
+                      &panel->cmd_sets[DSI_CMD_SET_DC_OFF].cmds[7]);
+
+error:
+    return rc;
+}
+#endif /* dsi_display_dc_creat_cmd */
+
 #endif
 
 
