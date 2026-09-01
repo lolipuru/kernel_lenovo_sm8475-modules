@@ -321,142 +321,81 @@ static int dsi_display_hbm_off(struct dsi_display *display)
 	return rc;
 }
 
+int dsi_display_hbm_setup(struct dsi_display *display, int enable)
+{
+	int rc = 0;
+	struct dsi_panel *panel;
+
+	if (display == NULL || display->panel == NULL) {
+		pr_err("%s: wangweiran display or panel is NULL\n", __func__);
+		return -EINVAL;
+	}
+
+	panel = display->panel;
+
+	mutex_lock(&panel->panel_lock);
+
+	if (!dsi_panel_initialized(panel)) {
+		pr_err("wangweiran panel is not initialized yet!\n");
+		goto exit;
+	}
+
+	switch (enable) {
+	case 0:
+		if (!panel->hbm_status)
+			goto exit;
+
+		dsi_panel_set_backlight(panel, panel->bl_config.bl_level);
+		rc = dsi_display_hbm_off(display);
+		if (rc) {
+			pr_err("wangweiran failed to disable hbm by tx cmd!\n");
+			pr_err("dsi_display_hbm_off failed!\n");
+			goto exit;
+		}
+
+		panel->hbm_status = false;
+		break;
+	case 1:
+		if (panel->hbm_status)
+			goto exit;
+
+		pr_info("dsi_display_hbm_on\n");
+		rc = dsi_display_hbm_on(display);
+		if (rc) {
+			pr_err("dsi failed to hbm on tx cmd!\n");
+			pr_err("dsi_display_hbm_on failed!\n");
+			goto exit;
+		}
+
+		panel->hbm_status = true;
+		break;
 #if defined(CONFIG_TARGET_PRODUCT_HALO) || defined(CONFIG_TARGET_PRODUCT_DIABLO)
-int dsi_display_hbm_setup(struct dsi_display *display, int enable)
-{
-	int rc = 0;
-	struct dsi_panel *panel = display->panel;
-
-	if (display == NULL || panel == NULL) {
-		pr_err("%s: wangweiran display or panel is NULL\n", __func__);
-		return -EINVAL;
-	}
-
-	mutex_lock(&panel->panel_lock);
-
-	if (!dsi_panel_initialized(panel)) {
-		pr_err("wangweiran panel is not initialized yet!\n");
-		goto exit;
-        }
-
-        rc = dsi_display_clk_ctrl(display->dsi_clk_handle,
-                        DSI_CORE_CLK, DSI_CLK_ON);
-        if (rc) {
-                pr_err("[%s] failed to enable DSI core clocks, rc=%d\n",
-                       display->name, rc);
-                goto exit;
-        }
-
-	switch(enable) {
-		case 0:
-			if (!display->panel->hbm_status)
-				goto exit2;
-
-			rc = dsi_display_hbm_off(display);
-			if (rc) {
-				pr_err("dsi_display_hbm_off failed!\n");
-				goto exit2;
-			}
-
-			panel->hbm_status = false;
-			break;
-		case 1:
-			if (panel->hbm_status)
-				goto exit2;
-
-			rc = dsi_display_hbm_on(display);
-			if (rc) {
-				pr_err("dsi_display_hbm_on failed!\n");
-				goto exit2;
-			}
-
-			panel->hbm_status = true;
-			break;
-		case 16:
-			dsi_panel_loading_setup(panel, false);
-			break;
-		case 17:
-			dsi_panel_loading_setup(panel, true);
-			break;
-		default:
-			pr_err("dsi_display_hbm_on: unsupport case = %d\n", enable);
-			break;
-	}
-exit2:
-       rc = dsi_display_clk_ctrl(display->dsi_clk_handle,
-                        DSI_CORE_CLK, DSI_CLK_OFF);
-        if (rc) {
-                pr_err("[%s] failed to disable DSI core clocks, rc=%d\n",
-                       display->name, rc);
-                goto exit;
-        }
-
-exit:
-	mutex_unlock(&panel->panel_lock);
-	return rc;
-}
-#else
-int dsi_display_hbm_setup(struct dsi_display *display, int enable)
-{
-	int rc = 0;
-	struct dsi_panel *panel = display->panel;
-
-	if (display == NULL || panel == NULL) {
-		pr_err("%s: wangweiran display or panel is NULL\n", __func__);
-		return -EINVAL;
-	}
-
-	mutex_lock(&panel->panel_lock);
-
-	if (!dsi_panel_initialized(panel)) {
-		pr_err("wangweiran panel is not initialized yet!\n");
-		goto exit;
-        }
-
-	switch(enable) {
-		case 0:
-			if (!display->panel->hbm_status)
-				goto exit;
-
-			rc = dsi_display_hbm_off(display);
-			if (rc) {
-				pr_err("dsi_display_hbm_off failed!\n");
-				goto exit;
-			}
-
-			panel->hbm_status = false;
-			break;
-		case 1:
-			if (panel->hbm_status)
-				goto exit;
-
-			rc = dsi_display_hbm_on(display);
-			if (rc) {
-				pr_err("dsi_display_hbm_on failed!\n");
-				goto exit;
-			}
-
-			panel->hbm_status = true;
-			break;
-		default:
-			pr_err("dsi_display_hbm_on: unsupport case = %d\n", enable);
-			break;
+	case 16:
+		dsi_panel_loading_setup(panel, false);
+		break;
+	case 17:
+		dsi_panel_loading_setup(panel, true);
+		break;
+#endif
+#ifdef CONFIG_TARGET_PRODUCT_HALO
+	case 18:
+		if (dsi_dc_read == 1)
+			dsi_panel_dc_cmd_set(panel, dc_off_cmds);
+		break;
+	case 19:
+		if (dsi_dc_read == 1)
+			dsi_panel_dc_cmd_set(panel, dc_on_cmds);
+		break;
+#endif
+	default:
+		pr_err("dsi_display_hbm_on: unsupport case = %d\n", enable);
+		break;
 	}
 
 exit:
 	mutex_unlock(&panel->panel_lock);
 	return rc;
 }
-#endif
-
-/* TO-DO: dummy implement until all drm command is implement */
-#ifdef CONFIG_TARGET_PRODUCT_HALO 
-int dsi_display_dcs_60hz_dc_on(struct dsi_display *display)
-{
-    dsi_panel_dc_cmd_set((struct dsi_panel *)display, &dc_on_cmds);
-    return 0;
-}
-#endif
 
 static int dsi_display_cmd_engine_enable(struct dsi_display *display)
 {
@@ -854,80 +793,151 @@ static void dsi_display_parse_te_data(struct dsi_display *display)
 }
 
 #if defined(CONFIG_TARGET_PRODUCT_HALO) || defined(CONFIG_TARGET_PRODUCT_DIABLO)
-
-#ifdef CONFIG_TARGET_PRODUCT_HALO
-#define UNLOCK_KEY_PAGE0  { 0x55, 0xAA, 0x52, 0x08, 0x00 }
-#define UNLOCK_KEY_PAGE4  { 0x55, 0xAA, 0x52, 0x08, 0x04 }
-
-static char dc_preamble_payload[] = {
-    0xF0,
-    0x55, 0xAA, 0x52, 0x08, 0x00,
-};
-
-static char dc_b2_payload[] = {
-    0xB2,
-    0x00,
-};
-
-static char dc_6f_payload[] = {
-    0x6F,
-    0x00,
-};
-
-static char dc_b2_ext_payload[] = {
-    0xB2,
-    0x30, 0x20, 0x85, 0x08, 0x25, 0x08,
-};
-
-static char dc_b3_on_payload[] = {
-    0xB3,
-    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-    0x01, 0xEF, 0x02, 0xD2, 0x02, 0xD2, 0x04, 0x3B,
-    0x04, 0x3B, 0x05, 0x08, 0x05, 0x08, 0x05, 0x09,
-    0x05, 0x09, 0x07, 0xB1, 0x07, 0xB1, 0x0C, 0x7D,
-    0x0C, 0x7D, 0x0F, 0xFF,
-};
-
-static char dc_f0_page4_payload[] = {
-    0xF0,
-    0x55, 0xAA, 0x52, 0x08, 0x04,
-};
-
-static char dc_58_on_payload[] = {
-    0x58,
-    0x00,
-};
-
-static char dc_58_off_payload[] = {
-    0x58,
-    0x00,
-};
-
-static char dc_b3_off_payload[] = {
-    0xB3,
-    0x00, 0x09, 0x00, 0xE1, 0x00, 0xE1, 0x01, 0xEF,
-    0x04, 0x3B, 0x05, 0x08, 0x05, 0x08, 0x05, 0x09,
-    0x05, 0x09, 0x07, 0xB1, 0x07, 0xB1, 0x0C, 0x7D,
-    0x0C, 0x7D, 0x0F, 0xFF,
-    0x05, 0x09, 0x07, 0xB1, 0x07, 0xB1, 0x0C, 0x7D,
-};
+int dsi_gamma_read = 0;
 #endif
 
-int dsi_gamma_read = 0;
-
-u8 gamma_90hz_1[210]; //read 200
-u8 gamma_90hz_2[156]; //read 90
+#ifdef CONFIG_TARGET_PRODUCT_HALO
+u8 gamma_90hz_1[200];
+u8 gamma_90hz_2[149];
 u8 gamma_90hz_b8[44];
 u8 gamma_90hz_b9[237];
 u8 gamma_90hz_ba[63];
-u8 gamma_120hz_1[54]; //read 44
-u8 gamma_120hz_2[247]; //read 237
-u8 gamma_120hz_3[73]; //read 63
+
+u8 gamma_120hz_1[44];
+u8 gamma_120hz_2[237];
+u8 gamma_120hz_3[63];
+
+u8 dc_D2[75];
+u8 dc_E7[75];
+
+u8 cmd7_on[83] = {
+	0x39, 0x00, 0x00, 0x00, 0x00, 0x00, 0x4c, 0xd2,
+	0x35, 0x35, 0x35, 0x16, 0x20, 0x39, 0x39, 0x39, 0x28, 0x15, 0x2a, 0x2a,
+	0x2a, 0x35, 0x25, 0x55, 0x55, 0x55, 0x48, 0x38, 0x68, 0x68, 0x68, 0x50,
+	0x10, 0x35, 0x35, 0x35, 0x16, 0x20, 0x39, 0x39, 0x39, 0x28, 0x15, 0x2a,
+	0x2a, 0x2a, 0x35, 0x25, 0x55, 0x55, 0x55, 0x48, 0x38, 0x68, 0x68, 0x68,
+	0x50, 0x10, 0x35, 0x35, 0x35, 0x16, 0x20, 0x39, 0x39, 0x39, 0x28, 0x15,
+	0x2a, 0x2a, 0x2a, 0x35, 0x25, 0x55, 0x55, 0x55, 0x48, 0x38, 0x68, 0x68,
+	0x68, 0x50, 0x10
+};
+
+u8 cmd7_off[83] = {
+	0x39, 0x00, 0x00, 0x00, 0x00, 0x00, 0x4c, 0xd2,
+	0x40, 0x21, 0x35, 0x16, 0x20, 0x50, 0x3f, 0x39, 0x28, 0x15, 0xa8, 0x48,
+	0x2a, 0x35, 0x25, 0xa0, 0x58, 0x55, 0x48, 0x38, 0x90, 0x6b, 0x68, 0x50,
+	0x10, 0x40, 0x21, 0x35, 0x16, 0x20, 0x50, 0x3f, 0x39, 0x28, 0x15, 0xa8,
+	0x48, 0x2a, 0x35, 0x25, 0xa0, 0x58, 0x55, 0x48, 0x38, 0x90, 0x6b, 0x68,
+	0x50, 0x10, 0x40, 0x21, 0x35, 0x16, 0x20, 0x50, 0x3f, 0x39, 0x28, 0x15,
+	0xa8, 0x48, 0x2a, 0x35, 0x25, 0xa0, 0x58, 0x55, 0x48, 0x38, 0x90, 0x6b,
+	0x68, 0x50, 0x10
+};
+#endif
 
 #ifdef CONFIG_TARGET_PRODUCT_DIABLO
 u8 cellid[41] = {0}; //read 41
 #endif
 
+#ifdef CONFIG_TARGET_PRODUCT_HALO
+static const char dc_cmd0_payload[] = {
+	0x39, 0x00, 0x00, 0x00, 0x00, 0x00, 0x06,
+	0xf0, 0x55, 0xaa, 0x52, 0x08, 0x00
+};
+
+static const char dc_on_cmd1_payload[] = {
+	0x39, 0x00, 0x00, 0x40, 0x00, 0x00, 0x02,
+	0xb2, 0x11
+};
+
+static const char dc_on_cmd2_payload[] = {
+	0x39, 0x00, 0x00, 0x00, 0x00, 0x00, 0x25,
+	0xb3, 0x00, 0x09, 0x00, 0xe1, 0x00, 0xe1, 0x01, 0xef,
+	0x01, 0xef, 0x02, 0xd2, 0x02, 0xd2, 0x04, 0x3b, 0x04,
+	0x3b, 0x05, 0x08, 0x05, 0x08, 0x05, 0x09, 0x05, 0x09,
+	0x07, 0xb1, 0x07, 0xb1, 0x0c, 0x7d, 0x0c, 0x7d, 0x0f,
+	0xff
+};
+
+static const char dc_cmd3_payload[] = {
+	0x39, 0x00, 0x00, 0x40, 0x00, 0x00, 0x02,
+	0x6f, 0x0f
+};
+
+static const char dc_cmd4_payload[] = {
+	0x39, 0x00, 0x00, 0x00, 0x00, 0x00, 0x07,
+	0xb2, 0x30, 0x20, 0x85, 0x08, 0x25, 0x08
+};
+
+static const char dc_cmd5_payload[] = {
+	0x39, 0x00, 0x00, 0x00, 0x00, 0x00, 0x06,
+	0xf0, 0x55, 0xaa, 0x52, 0x08, 0x04
+};
+
+static const char dc_on_cmd7_payload[] = {
+	0x39, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02,
+	0x58, 0x00
+};
+
+static const char dc_off_cmd1_payload[] = {
+	0x39, 0x00, 0x00, 0x40, 0x00, 0x00, 0x02,
+	0xb2, 0x91
+};
+
+static const char dc_off_cmd2_payload[] = {
+	0x39, 0x00, 0x00, 0x40, 0x00, 0x00, 0x07,
+	0xb2, 0x00, 0x20, 0x00, 0x00, 0x00, 0x00
+};
+
+static const char dc_off_cmd3_payload[] = {
+	0x39, 0x00, 0x00, 0x00, 0x00, 0x00, 0x25,
+	0xb3, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+	0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x05, 0x09,
+	0x07, 0xb1, 0x07, 0xb1, 0x0c, 0x7d, 0x0c, 0x7d, 0x0f,
+	0xff
+};
+
+static const char dc_off_cmd7_payload[] = {
+	0x39, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02,
+	0x58, 0x01
+};
+
+int dsi_display_dc_creat_cmd(void)
+{
+	dsi_panel_create_cmd_packets(dc_cmd0_payload, sizeof(dc_cmd0_payload), 1, &dc_on_cmds[0]);
+	dsi_panel_create_cmd_packets(dc_on_cmd1_payload, sizeof(dc_on_cmd1_payload), 1, &dc_on_cmds[1]);
+	dsi_panel_create_cmd_packets(dc_on_cmd2_payload, sizeof(dc_on_cmd2_payload), 1, &dc_on_cmds[2]);
+	dsi_panel_create_cmd_packets(dc_cmd3_payload, sizeof(dc_cmd3_payload), 1, &dc_on_cmds[3]);
+	dsi_panel_create_cmd_packets(dc_cmd4_payload, sizeof(dc_cmd4_payload), 1, &dc_on_cmds[4]);
+	dsi_panel_create_cmd_packets(dc_cmd5_payload, sizeof(dc_cmd5_payload), 1, &dc_on_cmds[5]);
+	dsi_panel_create_cmd_packets(cmd7_on, sizeof(cmd7_on), 1, &dc_on_cmds[6]);
+	dsi_panel_create_cmd_packets(dc_on_cmd7_payload, sizeof(dc_on_cmd7_payload), 1, &dc_on_cmds[7]);
+
+	dsi_panel_create_cmd_packets(dc_cmd0_payload, sizeof(dc_cmd0_payload), 1, &dc_off_cmds[0]);
+	dsi_panel_create_cmd_packets(dc_off_cmd1_payload, sizeof(dc_off_cmd1_payload), 1, &dc_off_cmds[1]);
+	dsi_panel_create_cmd_packets(dc_off_cmd2_payload, sizeof(dc_off_cmd2_payload), 1, &dc_off_cmds[2]);
+	dsi_panel_create_cmd_packets(dc_off_cmd3_payload, sizeof(dc_off_cmd3_payload), 1, &dc_off_cmds[3]);
+	dsi_panel_create_cmd_packets(dc_cmd3_payload, sizeof(dc_cmd3_payload), 1, &dc_off_cmds[4]);
+	dsi_panel_create_cmd_packets(dc_cmd4_payload, sizeof(dc_cmd4_payload), 1, &dc_off_cmds[5]);
+	dsi_panel_create_cmd_packets(dc_cmd5_payload, sizeof(dc_cmd5_payload), 1, &dc_off_cmds[6]);
+	dsi_panel_create_cmd_packets(cmd7_off, sizeof(cmd7_off), 1, &dc_off_cmds[7]);
+
+	return 0;
+}
+
+int dsi_display_dcs_60hz_dc_on(struct dsi_panel *panel)
+{
+	dsi_panel_dc_cmd_set(panel, dc_on_cmds);
+	return 0;
+}
+
+int dsi_display_dcs_60hz_dc_off(struct dsi_panel *panel)
+{
+	dsi_panel_dc_cmd_set(panel, dc_off_cmds);
+	return 0;
+}
+#endif
+
+#ifdef CONFIG_TARGET_PRODUCT_DIABLO
 struct dsi_cmd_desc pw_cmds = {
 	{ 0 },	// msg
 	1,	// last
@@ -939,7 +949,6 @@ struct dsi_panel_cmd_set pw_cmdset = {
 	.cmds = &pw_cmds,
 };
 
-#ifdef CONFIG_TARGET_PRODUCT_DIABLO
 int dsi_display_read_cellid(struct dsi_display_ctrl *ctrl,
         struct dsi_panel *panel)
 {
@@ -976,11 +985,6 @@ int dsi_display_read_cellid(struct dsi_display_ctrl *ctrl,
         payload[j] = data[7 + j];
 
     cmds.msg.tx_buf = payload;
-    /*
-     * When DSI controller is not in initialized state, we do not want to
-     * report a false ESD failure and hence we defer until next read
-     * happen.
-     */
     if (!dsi_ctrl_validate_host_state(ctrl->ctrl))
         return 0;
 
@@ -1021,358 +1025,397 @@ int dsi_display_read_cellid(struct dsi_display_ctrl *ctrl,
 error:
     return 0;
 }
-#endif
 
-int mipi_dsi_dcs_90hz_gamma_read1_enable(struct mipi_dsi_device *dsi)
-{
-        ssize_t err;
-        u8 payload[5] = { 0 };
-
-	printk("drm dsi %s  enter\n", __func__);
-       //mipi.write 0xFC <- 0x5A 0x5A
-        payload[0] = 0x5A;
-        payload[1] = 0x5A;
-        err = mipi_dsi_dcs_write(dsi, 0xFC, payload, 2);
-        if (err < 0)
-                return err;
-
-        //mipi.write 0xB0 <-0x10
-        payload[0] = 0x10;
-        err = mipi_dsi_dcs_write(dsi, 0xB0, payload, 1);
-        if (err < 0)
-                return err;
-
-        //mipi.write 0xFF <- 0x02 0x70
-        payload[0] = 0x02;
-        payload[1] = 0x70;
-        err = mipi_dsi_dcs_write(dsi, 0xFF, payload, 2);
-        if (err < 0)
-                return err;
-
-        return 0;
-}
-
-int mipi_dsi_dcs_90hz_gamma_read2_enable(struct mipi_dsi_device *dsi)
-{
-        ssize_t err;
-        u8 payload[5] = { 0 };
-
-	printk("drm dsi %s  enter\n", __func__);
-        // STEP 1, Levenl3 key Access Enable
-        //mipi.write 0xFC <- 0x5A 0x5A
-        payload[0] = 0x5A;
-        payload[1] = 0x5A;
-        err = mipi_dsi_dcs_write(dsi, 0xFC, payload, 2);
-        if (err < 0)
-                return err;
-
-        //mipi.write 0xB0 <-0x10
-        payload[0] = 0x10;
-        err = mipi_dsi_dcs_write(dsi, 0xB0, payload, 1);
-        if (err < 0)
-                return err;
-
-        //mipi.write 0xFF <- 0x02 0x71
-        payload[0] = 0x02;
-        payload[1] = 0x71;
-        err = mipi_dsi_dcs_write(dsi, 0xFF, payload, 2);
-        if (err < 0)
-                return err;
-
-        return 0;
-}
-
-int mipi_dsi_dcs_90hz_gamma_read_disable(struct mipi_dsi_device *dsi)
-{
-        ssize_t err;
-        u8 payload[5] = { 0 };
-
-	printk("drm dsi %s  enter\n", __func__);
-
-        //mipi.write 0xB0 <-0x10
-        payload[0] = 0x10;
-        err = mipi_dsi_dcs_write(dsi, 0xB0, payload, 1);
-        if (err < 0)
-                return err;
-
-        //mipi.write 0xFF <- 0x00 0x70
-        payload[0] = 0x00;
-        payload[1] = 0x70;
-        err = mipi_dsi_dcs_write(dsi, 0xFF, payload, 2);
-        if (err < 0)
-                return err;
-
-        //mipi.write 0xFC <- 0x5A 0x5A
-        payload[0] = 0xA5;
-        payload[1] = 0xA5;
-        err = mipi_dsi_dcs_write(dsi, 0xFC, payload, 2);
-        if (err < 0)
-                return err;
-
-        return 0;
-}
-
-int mipi_dsi_dcs_120hz_gamma_read1_enable(struct mipi_dsi_device *dsi)
-{
-        ssize_t err;
-        u8 payload[5] = { 0 };
-
-        pr_info("drm dsi %s  enter\n", __func__);
-        payload[0] = 0x5A;
-        payload[1] = 0x5A;
-        err = mipi_dsi_dcs_write(dsi, 0xF0, payload, 2);
-        if (err < 0)
-                return err;
-
-        //mipi.write 0xB0 <-0x10
-        payload[0] = 0xBB;
-        err = mipi_dsi_dcs_write(dsi, 0xB0, payload, 1);
-        if (err < 0)
-                return err;
-
-        return 0;
-}
-
-int mipi_dsi_dcs_120hz_gamma_read2_enable(struct mipi_dsi_device *dsi)
-{
-        ssize_t err;
-        u8 payload[5] = { 0 };
-
-	printk("drm dsi %s  enter\n", __func__);
-        //mipi.write 0xB0 <-0x10
-        payload[0] = 0x80;
-        err = mipi_dsi_dcs_write(dsi, 0xB0, payload, 1);
-        if (err < 0)
-                return err;
-
-        return 0;
-}
-
-int mipi_dsi_dcs_120hz_gamma_read_disable(struct mipi_dsi_device *dsi)
-{
-        ssize_t err;
-        u8 payload[5] = { 0 };
-
-        //mipi.write 0xFC <- 0x5A 0x5A
-        payload[0] = 0xA5;
-        payload[1] = 0xA5;
-        err = mipi_dsi_dcs_write(dsi, 0xF0, payload, 2);
-        if (err < 0)
-                return err;
-
-        return 0;
-}
-
-int mipi_dsi_dcs_90hz_gamma_set(struct mipi_dsi_device *dsi)
-{
-        ssize_t err;
-        u8 payload[5] = { 0 };
-	int i;
-	static bool copy_once = true;
-	if (copy_once == true) {
-		for(i = 0; i<44; i++)
-			gamma_90hz_b8[i] = gamma_90hz_1[i];
-		for(i = 44; i<200; i++) //156
-			gamma_90hz_b9[i-44] = gamma_90hz_1[i];
-		for(i = 156; i<237; i++) //81
-			gamma_90hz_b9[i] = gamma_90hz_2[i-156];
-		for(i = 0; i<63; i++) //63
-			gamma_90hz_ba[i] = gamma_90hz_2[i+81];
-		copy_once = false;
-	}
-        pr_info("drm dsi %s  enter\n", __func__);
-        payload[0] = 0x5A;
-        payload[1] = 0x5A;
-        err = mipi_dsi_dcs_write(dsi, 0xF0, payload, 2);
-        if (err < 0)
-                return err;
-        //mipi.write 0xB0 <-0x10
-        payload[0] = 0xBB;
-        err = mipi_dsi_dcs_write(dsi, 0xB0, payload, 1);
-        if (err < 0)
-                return err;
-
-        err = mipi_dsi_dcs_write(dsi, 0xB8, gamma_90hz_b8, 44);
-        if (err < 0)
-                return err;
-        err = mipi_dsi_dcs_write(dsi, 0xB9, gamma_90hz_b9, 237);
-        if (err < 0)
-                return err;
-        err = mipi_dsi_dcs_write(dsi, 0xBA, gamma_90hz_ba, 63);
-        if (err < 0)
-                return err;
-        //mipi.write 0xFC <- 0x5A 0x5A
-        payload[0] = 0xA5;
-        payload[1] = 0xA5;
-        err = mipi_dsi_dcs_write(dsi, 0xF0, payload, 2);
-        if (err < 0)
-                return err;
-        return 0;
-}
-
-int mipi_dsi_dcs_120hz_gamma_set(struct mipi_dsi_device *dsi)
-{
-        ssize_t err;
-        u8 payload[5] = { 0 };
-        pr_info("drm dsi %s  enter, do noting\n", __func__);
-        return  0;
-        pr_info("drm dsi %s  enter\n", __func__);
-        payload[0] = 0x5A;
-        payload[1] = 0x5A;
-        err = mipi_dsi_dcs_write(dsi, 0xF0, payload, 2);
-        if (err < 0)
-                return err;
-        //mipi.write 0xB0 <-0x10
-        payload[0] = 0xBB;
-        err = mipi_dsi_dcs_write(dsi, 0xB0, payload, 1);
-        if (err < 0)
-                return err;
-
-        err = mipi_dsi_dcs_write(dsi, 0xB8, gamma_120hz_1, 44);
-        if (err < 0)
-                return err;
-        err = mipi_dsi_dcs_write(dsi, 0xB9, gamma_120hz_2, 237);
-        if (err < 0)
-                return err;
-        err = mipi_dsi_dcs_write(dsi, 0xBA, gamma_120hz_3, 63);
-        if (err < 0)
-                return err;
-        //mipi.write 0xFC <- 0x5A 0x5A
-        payload[0] = 0xA5;
-        payload[1] = 0xA5;
-        err = mipi_dsi_dcs_write(dsi, 0xF0, payload, 2);
-        if (err < 0)
-                return err;
-        return 0;
-}
-
-int dsi_display_get_90hz_gamma(struct dsi_display_ctrl *ctrl,
-        struct dsi_panel *panel)
-{
-    int rc = 0;
-    struct dsi_cmd_desc cmds;
-    u8 data[] = {06, 01, 00, 01, 00, 00, 01, 0xF6};
-    u32 flags = 0;
-    u8 *payload;
-    int size, j;
-    u32 checksum = 0;
-    int i;
-    struct mipi_dsi_device *dsi;
-
-    pr_info(" ++\n");
-
-    if (!panel || !ctrl || !ctrl->ctrl)
-        return -EINVAL;
-
-    dsi = &panel->mipi_device;
-    mipi_dsi_dcs_90hz_gamma_read1_enable(dsi);
-
-    cmds.msg.type = data[0];
-    cmds.last_command = (data[1] == 1 ? true : false);
-    cmds.msg.channel = data[2];
-    cmds.msg.flags |= (data[3] == 1 ? MIPI_DSI_MSG_REQ_ACK : 0);
-    cmds.msg.ctrl = 0;
-    cmds.post_wait_ms = cmds.msg.wait_ms = data[4];
-    cmds.msg.tx_len = ((data[5] << 8) | (data[6]));
-
-    size = cmds.msg.tx_len * sizeof(u8);
-    payload = kzalloc(size, GFP_KERNEL);
-    if (!payload) {
-        rc = -ENOMEM;
-    }
-
-    for (j = 0; j < cmds.msg.tx_len; j++)
-        payload[j] = data[7 + j];
-
-    cmds.msg.tx_buf = payload;
-    /*
-     * When DSI controller is not in initialized state, we do not want to
-     * report a false ESD failure and hence we defer until next read
-     * happen.
-     */
-    if (!dsi_ctrl_validate_host_state(ctrl->ctrl))
-        return 0;
-
-    if (cmds.last_command) {
-        cmds.msg.flags |= MIPI_DSI_MSG_LASTCOMMAND;
-        flags |= DSI_CTRL_CMD_LAST_COMMAND;
-    }
-    flags |= (DSI_CTRL_CMD_FETCH_MEMORY | DSI_CTRL_CMD_READ);
-
-    if (ctrl->ctrl->host_config.panel_mode == DSI_OP_VIDEO_MODE)
-        flags |= DSI_CTRL_CMD_CUSTOM_DMA_SCHED;
-
-    if (cmds.last_command) {
-        cmds.msg.flags |= MIPI_DSI_MSG_LASTCOMMAND;
-        flags |= DSI_CTRL_CMD_LAST_COMMAND;
-    }
-    if ((cmds.msg.flags & MIPI_DSI_MSG_CMD_DMA_SCHED) &&
-         (panel->panel_initialized))
-        flags |= DSI_CTRL_CMD_CUSTOM_DMA_SCHED;
-
-    cmds.msg.rx_buf = &gamma_90hz_1[0];
-    cmds.msg.rx_len = 200;
-    memcpy(&pw_cmds, &cmds, sizeof(struct dsi_cmd_desc));
-
-    rc = dsi_ctrl_cmd_transfer(ctrl->ctrl, &cmds);
-    if (rc <= 0) {
-        pr_err("rx cmd transfer failed rc=%d\n", rc);
-        goto error;
-    }
-
-    for (j = 0; j < 10; j++)
-        pr_debug("drm dsi gamma 90Hz 1 val %d = 0x%x, 0x%x, 0x%x, 0x%x, 0x%x, 0x%x, 0x%x, 0x%x, 0x%x, 0x%x,0x%x, 0x%x, 0x%x, 0x%x, 0x%x, 0x%x, 0x%x, 0x%x, 0x%x, 0x%x\n", j,
-                        gamma_90hz_1[j*20+0], gamma_90hz_1[j*20+1], gamma_90hz_1[j*20+2], gamma_90hz_1[j*20+3], gamma_90hz_1[j*20+4],
-                        gamma_90hz_1[j*20+5],gamma_90hz_1[j*20+6], gamma_90hz_1[j*20+7], gamma_90hz_1[j*20+8], gamma_90hz_1[j*20+9],
-                        gamma_90hz_1[j*20+10], gamma_90hz_1[j*20+11], gamma_90hz_1[j*20+12], gamma_90hz_1[j*20+13], gamma_90hz_1[j*20+14],
-                        gamma_90hz_1[j*20+15], gamma_90hz_1[j*20+16], gamma_90hz_1[j*20+17], gamma_90hz_1[j*20+18], gamma_90hz_1[j*20+19]);
-
-    mipi_dsi_dcs_90hz_gamma_read_disable(dsi);
-    mipi_dsi_dcs_90hz_gamma_read2_enable(dsi);
-
-    // Read 146 90Hz GAMMA
-    cmds.msg.rx_buf = &gamma_90hz_2[0];
-    cmds.msg.rx_len = 149;
-    memcpy(&pw_cmds, &cmds, sizeof(struct dsi_cmd_desc));
-
-    rc = dsi_ctrl_cmd_transfer(ctrl->ctrl, &cmds);
-    if (rc <= 0) {
-        pr_err("rx cmd transfer failed rc=%d\n", rc);
-        goto error;
-    }
-
-    for (j = 0; j < 7; j++)
-        pr_debug("drm dsi gamma C8 val %d = 0x%x, 0x%x, 0x%x, 0x%x, 0x%x, 0x%x, 0x%x, 0x%x, 0x%x, 0x%x,0x%x, 0x%x, 0x%x, 0x%x, 0x%x, 0x%x, 0x%x, 0x%x, 0x%x, 0x%x\n", j,
-                                        gamma_90hz_2[j*20+0], gamma_90hz_2[j*20+1], gamma_90hz_2[j*20+2], gamma_90hz_2[j*20+3], gamma_90hz_2[j*20+4],
-                                        gamma_90hz_2[j*20+5], gamma_90hz_2[j*20+6], gamma_90hz_2[j*20+7], gamma_90hz_2[j*20+8], gamma_90hz_2[j*20+9],
-                                        gamma_90hz_2[j*20+10], gamma_90hz_2[j*20+11], gamma_90hz_2[j*20+12], gamma_90hz_2[j*20+13], gamma_90hz_2[j*20+14],
-                                        gamma_90hz_2[j*20+15], gamma_90hz_2[j*20+16], gamma_90hz_2[j*20+17], gamma_90hz_2[j*20+18], gamma_90hz_2[j*20+19]);
-    
-    pr_info("drm 345 = 0x%x, 346 = 0x%x\n", gamma_90hz_2[144], gamma_90hz_2[145]);
-    pr_info("drm 347 = 0x%x, 348 = 0x%x, 349 = 0x%x\n", gamma_90hz_2[146], gamma_90hz_2[147],gamma_90hz_2[148]);
-    
-    for (i = 0; i < 200; i++)
-        checksum += gamma_90hz_1[i];
-    for (i = 0; i < 144; i++)
-        checksum += gamma_90hz_2[i];
-    
-    pr_info("drm 90Hz checksum = 0x%x\n", checksum);
-    if (1 == gamma_90hz_2[146])
-        dsi_gamma_read = 1;
-
-error:
-    mipi_dsi_dcs_90hz_gamma_read_disable(dsi);
-    
-    if (checksum == 0)
-        return -EINVAL;
-    return 0;
-}
-
-int dsi_display_read_90hz_gamma(struct dsi_display *display)
+int dsi_display_read_8s(struct dsi_display *display)
 {
 	struct dsi_display_ctrl  *ctrl;
 	struct dsi_panel *panel = display->panel;
 
+	ctrl = &display->ctrl[display->cmd_master_idx];
+
+	pr_info(" ++\n");
+
+	if (!panel || !ctrl || !ctrl->ctrl)
+		return -EINVAL;
+
+	dsi_display_read_cellid(ctrl, panel);
+
+	return 0;
+}
+#endif
+
+#if defined(CONFIG_TARGET_PRODUCT_HALO) || defined(CONFIG_TARGET_PRODUCT_DIABLO)
+int mipi_dsi_dcs_90hz_gamma_set(struct mipi_dsi_device *dsi)
+{
+	ssize_t err;
+	u8 payload[5] = { 0 };
+
+	pr_info("drm : switch to 90Hz gamma\n");
+
+	payload[0] = 0x5a;
+	payload[1] = 0x5a;
+	err = mipi_dsi_dcs_write(dsi, 0xf0, payload, 2);
+	if (err < 0)
+		return err;
+
+	payload[0] = 0xbb;
+	err = mipi_dsi_dcs_write(dsi, 0xb0, payload, 1);
+	if (err < 0)
+		return err;
+
+	err = mipi_dsi_dcs_write(dsi, 0xb8, gamma_90hz_b8, 44);
+	if (err < 0)
+		return err;
+
+	err = mipi_dsi_dcs_write(dsi, 0xb9, gamma_90hz_b9, 237);
+	if (err < 0)
+		return err;
+
+	err = mipi_dsi_dcs_write(dsi, 0xba, gamma_90hz_ba, 63);
+	if (err < 0)
+		return err;
+
+	payload[0] = 0xa5;
+	payload[1] = 0xa5;
+	err = mipi_dsi_dcs_write(dsi, 0xf0, payload, 2);
+	if (err < 0)
+		return err;
+
+	return 0;
+}
+EXPORT_SYMBOL(mipi_dsi_dcs_90hz_gamma_set);
+
+int mipi_dsi_dcs_120hz_gamma_set(struct mipi_dsi_device *dsi)
+{
+	ssize_t err;
+	u8 payload[5] = { 0 };
+
+	pr_info("drm : switch to 120Hz gamma\n");
+
+	payload[0] = 0x5a;
+	payload[1] = 0x5a;
+	err = mipi_dsi_dcs_write(dsi, 0xf0, payload, 2);
+	if (err < 0)
+		return err;
+
+	payload[0] = 0xbb;
+	err = mipi_dsi_dcs_write(dsi, 0xb0, payload, 1);
+	if (err < 0)
+		return err;
+
+	err = mipi_dsi_dcs_write(dsi, 0xb8, gamma_120hz_1, 44);
+	if (err < 0)
+		return err;
+
+	err = mipi_dsi_dcs_write(dsi, 0xb9, gamma_120hz_2, 237);
+	if (err < 0)
+		return err;
+
+	err = mipi_dsi_dcs_write(dsi, 0xba, gamma_120hz_3, 63);
+	if (err < 0)
+		return err;
+
+	payload[0] = 0xa5;
+	payload[1] = 0xa5;
+	err = mipi_dsi_dcs_write(dsi, 0xf0, payload, 2);
+	if (err < 0)
+		return err;
+
+	return 0;
+}
+EXPORT_SYMBOL(mipi_dsi_dcs_120hz_gamma_set);
+#endif
+
+static void dsi_display_set_cmd_tx_ctrl_flags(struct dsi_display *display,
+		struct dsi_cmd_desc *cmd);
+
+#ifdef CONFIG_TARGET_PRODUCT_HALO
+int dsi_display_read_gamma_data(struct dsi_display_ctrl *ctrl, struct dsi_panel *panel,
+				u8 cmd_reg, u32 rx_len, u8 *rx_buf)
+{
+	int rc = 0;
+	struct dsi_cmd_desc cmds;
+	u8 *payload;
+	u32 flags = 0;
+
+	pr_info(" %s ++\n", __func__);
+
+	if (!ctrl || !panel || !ctrl->ctrl)
+		return -EINVAL;
+
+	payload = kzalloc(sizeof(u8), GFP_KERNEL);
+	if (!payload)
+		return -ENOMEM;
+
+	payload[0] = cmd_reg;
+
+	memset(&cmds, 0, sizeof(cmds));
+	cmds.msg.type = 0x06;
+	cmds.last_command = true;
+	cmds.msg.channel = 0;
+	cmds.msg.flags = MIPI_DSI_MSG_REQ_ACK | MIPI_DSI_MSG_LASTCOMMAND;
+	cmds.msg.tx_len = 1;
+	cmds.msg.tx_buf = payload;
+	cmds.msg.rx_len = rx_len;
+	cmds.msg.rx_buf = rx_buf;
+
+	if (!dsi_ctrl_validate_host_state(ctrl->ctrl)) {
+		kfree(payload);
+		return 0;
+	}
+
+	flags = DSI_CTRL_CMD_FETCH_MEMORY | DSI_CTRL_CMD_READ;
+	cmds.ctrl_flags = flags;
+
+	dsi_display_set_cmd_tx_ctrl_flags(panel, &cmds);
+
+	rc = dsi_ctrl_transfer_prepare(ctrl->ctrl, cmds.ctrl_flags);
+	if (rc) {
+		DSI_ERR("prepare for rx cmd transfer failed rc=%d\n", rc);
+		kfree(payload);
+		return rc;
+	}
+
+	rc = dsi_ctrl_cmd_transfer(ctrl->ctrl, &cmds);
+	if (rc <= 0)
+		pr_err("rx cmd transfer failed rc=%d\n", rc);
+
+	dsi_ctrl_transfer_unprepare(ctrl->ctrl, cmds.ctrl_flags);
+	kfree(payload);
+
+	return rc > 0 ? 0 : rc;
+}
+
+int dsi_display_read_120hz_gamma_0xB8_44(struct dsi_display_ctrl *ctrl, struct dsi_panel *panel)
+{
+	u8 val_b0[5] = { 0xbb, 0xc5, 0xcf, 0xd9, 0xe3 };
+	int i, rc = 0;
+
+	pr_info("drm: 120 gamma B8 num=%d\n", 5);
+
+	for (i = 0; i < 5; i++) {
+		rc = mipi_dsi_dcs_write(&panel->mipi_device, 0xb0, &val_b0[i], 1);
+		if (rc < 0)
+			return rc;
+
+		if (i == 4)
+			rc = dsi_display_read_gamma_data(ctrl, panel, 0xb8, 4, &gamma_120hz_1[40]);
+		else
+			rc = dsi_display_read_gamma_data(ctrl, panel, 0xb8, 10, &gamma_120hz_1[i * 10]);
+
+		if (rc < 0)
+			return rc;
+	}
+
+	return 0;
+}
+
+int dsi_display_read_120hz_gamma_0xBA_63(struct dsi_display_ctrl *ctrl, struct dsi_panel *panel)
+{
+	u8 val_b0[7] = { 0x00, 0x0a, 0x14, 0x1e, 0x28, 0x32, 0x3c };
+	int i, rc = 0;
+
+	pr_info("drm: 120 gamma BA num=%d\n", 7);
+
+	for (i = 0; i < 7; i++) {
+		rc = mipi_dsi_dcs_write(&panel->mipi_device, 0xb0, &val_b0[i], 1);
+		if (rc < 0)
+			return rc;
+
+		if (i == 6)
+			rc = dsi_display_read_gamma_data(ctrl, panel, 0xba, 3, &gamma_120hz_3[60]);
+		else
+			rc = dsi_display_read_gamma_data(ctrl, panel, 0xba, 10, &gamma_120hz_3[i * 10]);
+
+		if (rc < 0)
+			return rc;
+	}
+
+	return 0;
+}
+
+int dsi_display_read_120hz_gamma(struct dsi_display *display)
+{
+	struct dsi_display_ctrl *ctrl;
+	struct dsi_panel *panel;
+	u8 val_f0_on[] = { 0x5a, 0x5a };
+	u8 val_f0_off[] = { 0xa5, 0xa5 };
+	u8 b0_val;
+	int j, rc = 0, checksum = 0;
+
+	if (!display || display->cmd_master_idx >= MAX_DSI_CTRLS)
+		return -EINVAL;
+
+	panel = display->panel;
+	ctrl = &display->ctrl[display->cmd_master_idx];
+	if (!panel || !ctrl || !ctrl->ctrl)
+		return -EINVAL;
+
+	pr_info(" ++\n");
+	pr_info("drm dsi %s  enter\n", "mipi_dsi_dcs_120hz_gamma_read1_enable");
+
+	rc = mipi_dsi_dcs_write(&panel->mipi_device, 0xf0, val_f0_on, sizeof(val_f0_on));
+	if (rc < 0)
+		return rc;
+
+	rc = dsi_display_read_120hz_gamma_0xB8_44(ctrl, panel);
+	if (rc < 0)
+		goto error;
+
+	pr_info("drm: 120 gamma B9 num=%d\n", 24);
+
+	for (j = 0; j < 24; j++) {
+		b0_val = j * 10;
+		rc = mipi_dsi_dcs_write(&panel->mipi_device, 0xb0, &b0_val, 1);
+		if (rc < 0)
+			goto error;
+
+		if (j == 23)
+			rc = dsi_display_read_gamma_data(ctrl, panel, 0xb9, 7, &gamma_120hz_2[230]);
+		else
+			rc = dsi_display_read_gamma_data(ctrl, panel, 0xb9, 10, &gamma_120hz_2[j * 10]);
+
+		if (rc < 0)
+			goto error;
+	}
+
+	rc = dsi_display_read_120hz_gamma_0xBA_63(ctrl, panel);
+
+error:
+	mipi_dsi_dcs_write(&panel->mipi_device, 0xf0, val_f0_off, sizeof(val_f0_off));
+
+	checksum = 0;
+	for (j = 0; j < 44; j++)
+		checksum += gamma_120hz_1[j];
+	for (j = 0; j < 237; j++)
+		checksum += gamma_120hz_2[j];
+	for (j = 0; j < 63; j++)
+		checksum += gamma_120hz_3[j];
+
+	pr_info("drm 120Hz checksum 111 = 0x%x\n", checksum);
+	return rc;
+}
+
+int dsi_display_get_90hz_gamma(struct dsi_display_ctrl *ctrl, struct dsi_panel *panel)
+{
+	u8 val_fc_on[] = { 0x5a, 0x5a };
+	u8 val_b0 = 0x10;
+	u8 val_ff_1[] = { 0x02, 0x70 };
+	u8 val_ff_2[] = { 0x03, 0x70 };
+	u8 val_ff_dis[] = { 0x00, 0x70 };
+	u8 val_fc_off[] = { 0xa5, 0xa5 };
+	struct dsi_cmd_desc cmds;
+	u8 *payload;
+	u32 flags = 0;
+	int rc = 0, i, checksum = 0;
+
+	pr_info(" ++\n");
+
+	if (!ctrl || !panel || !ctrl->ctrl)
+		return -EINVAL;
+
+	pr_info("drm dsi %s  enter\n", "mipi_dsi_dcs_90hz_gamma_read1_enable");
+	mipi_dsi_dcs_write(&panel->mipi_device, 0xfc, val_fc_on, sizeof(val_fc_on));
+	mipi_dsi_dcs_write(&panel->mipi_device, 0xb0, &val_b0, 1);
+	mipi_dsi_dcs_write(&panel->mipi_device, 0xff, val_ff_1, sizeof(val_ff_1));
+
+	payload = kzalloc(sizeof(u8), GFP_KERNEL);
+	if (!payload)
+		return -ENOMEM;
+
+	payload[0] = 0xf6;
+
+	memset(&cmds, 0, sizeof(cmds));
+	cmds.msg.type = 0x06;
+	cmds.last_command = true;
+	cmds.msg.channel = 0;
+	cmds.msg.flags = MIPI_DSI_MSG_REQ_ACK | MIPI_DSI_MSG_LASTCOMMAND;
+	cmds.msg.tx_len = 1;
+	cmds.msg.tx_buf = payload;
+	cmds.msg.rx_len = 200;
+	cmds.msg.rx_buf = gamma_90hz_1;
+
+	if (!dsi_ctrl_validate_host_state(ctrl->ctrl)) {
+		kfree(payload);
+		return 0;
+	}
+
+	flags = DSI_CTRL_CMD_FETCH_MEMORY | DSI_CTRL_CMD_READ;
+	cmds.ctrl_flags = flags;
+
+	dsi_display_set_cmd_tx_ctrl_flags(panel, &cmds);
+
+	rc = dsi_ctrl_transfer_prepare(ctrl->ctrl, cmds.ctrl_flags);
+	if (rc) {
+		DSI_ERR("prepare for rx cmd transfer failed rc=%d\n", rc);
+		kfree(payload);
+		return rc;
+	}
+
+	rc = dsi_ctrl_cmd_transfer(ctrl->ctrl, &cmds);
+	if (rc <= 0)
+		pr_err("rx cmd transfer failed rc=%d\n", rc);
+
+	dsi_ctrl_transfer_unprepare(ctrl->ctrl, cmds.ctrl_flags);
+
+	pr_info("drm dsi %s  enter\n", "mipi_dsi_dcs_90hz_gamma_read_disable");
+	mipi_dsi_dcs_write(&panel->mipi_device, 0xb0, &val_b0, 1);
+	mipi_dsi_dcs_write(&panel->mipi_device, 0xff, val_ff_dis, sizeof(val_ff_dis));
+	mipi_dsi_dcs_write(&panel->mipi_device, 0xfc, val_fc_off, sizeof(val_fc_off));
+
+	pr_info("drm dsi %s  enter\n", "mipi_dsi_dcs_90hz_gamma_read2_enable");
+	mipi_dsi_dcs_write(&panel->mipi_device, 0xfc, val_fc_on, sizeof(val_fc_on));
+	mipi_dsi_dcs_write(&panel->mipi_device, 0xb0, &val_b0, 1);
+	mipi_dsi_dcs_write(&panel->mipi_device, 0xff, val_ff_2, sizeof(val_ff_2));
+
+	cmds.msg.rx_len = 149;
+	cmds.msg.rx_buf = gamma_90hz_2;
+
+	rc = dsi_ctrl_transfer_prepare(ctrl->ctrl, cmds.ctrl_flags);
+	if (rc) {
+		DSI_ERR("prepare for rx cmd transfer failed rc=%d\n", rc);
+		kfree(payload);
+		return rc;
+	}
+
+	rc = dsi_ctrl_cmd_transfer(ctrl->ctrl, &cmds);
+	if (rc <= 0)
+		pr_err("rx cmd transfer failed rc=%d\n", rc);
+
+	dsi_ctrl_transfer_unprepare(ctrl->ctrl, cmds.ctrl_flags);
+
+	pr_info("drm checksum 345 = 0x%x, 346 = 0x%x\n", gamma_90hz_2[144], gamma_90hz_2[145]);
+	pr_info("drm checksum 347 = 0x%x, 348 = 0x%x, 349 = 0x%x\n",
+		gamma_90hz_2[146], gamma_90hz_2[147], gamma_90hz_2[148]);
+
+	checksum = 0;
+	for (i = 0; i < 200; i++)
+		checksum += gamma_90hz_1[i];
+	for (i = 0; i < 144; i++)
+		checksum += gamma_90hz_2[i];
+
+	pr_info("drm 90Hz checksum = 0x%x\n", checksum);
+	if (gamma_90hz_2[146] == 1)
+		dsi_gamma_read = 1;
+
+	pr_info("drm dsi %s  enter\n", "mipi_dsi_dcs_90hz_gamma_read_disable");
+	mipi_dsi_dcs_write(&panel->mipi_device, 0xb0, &val_b0, 1);
+	mipi_dsi_dcs_write(&panel->mipi_device, 0xff, val_ff_dis, sizeof(val_ff_dis));
+	mipi_dsi_dcs_write(&panel->mipi_device, 0xfc, val_fc_off, sizeof(val_fc_off));
+
+	kfree(payload);
+	return checksum == 0 ? -EINVAL : 0;
+}
+
+int dsi_display_read_90hz_gamma(struct dsi_display *display)
+{
+	struct dsi_display_ctrl *ctrl;
+	struct dsi_panel *panel;
+
+	if (!display || display->cmd_master_idx >= MAX_DSI_CTRLS)
+		return -EINVAL;
+
+	panel = display->panel;
 	ctrl = &display->ctrl[display->cmd_master_idx];
 
 	pr_info(" ++\n");
@@ -1384,632 +1427,153 @@ int dsi_display_read_90hz_gamma(struct dsi_display *display)
 	return 0;
 }
 
-int dsi_display_read_120hz_gamma_0xB8_44(struct dsi_display_ctrl *ctrl,
-        struct dsi_panel *panel)
+int dsi_display_read_gamma(struct drm_connector *connector, void *display)
 {
-    int rc = 0;
-    struct dsi_cmd_desc cmds;
-    u8 data[] = {06, 01, 00, 01, 00, 00, 01, 0xB8};
-    u32 flags = 0;
-    u8 *payload;
-    int size, j;
-    struct mipi_dsi_device *dsi;
+	static int num = 0;
+	struct dsi_display *dsi_display = display;
+	struct dsi_display_ctrl *ctrl;
+	struct dsi_panel *panel;
+	int rc = 0;
 
-    pr_info(" %s ++\n", __func__);
+	if (dsi_gamma_read == 1 || num > 5)
+		return 0;
 
-    if (!panel || !ctrl || !ctrl->ctrl)
-        return -EINVAL;
+	if (!dsi_display || !dsi_display->panel)
+		return -EINVAL;
 
-    dsi = &panel->mipi_device;
+	dsi_display_read_120hz_gamma(dsi_display);
 
-    cmds.msg.type = data[0];
-    cmds.last_command = (data[1] == 1 ? true : false);
-    cmds.msg.channel = data[2];
-    cmds.msg.flags |= (data[3] == 1 ? MIPI_DSI_MSG_REQ_ACK : 0);
-    cmds.msg.ctrl = 0;
-    cmds.post_wait_ms = cmds.msg.wait_ms = data[4];
-    cmds.msg.tx_len = ((data[5] << 8) | (data[6]));
+	if (dsi_display->cmd_master_idx >= MAX_DSI_CTRLS)
+		return -EINVAL;
 
-    size = cmds.msg.tx_len * sizeof(u8);
-    payload = kzalloc(size, GFP_KERNEL);
-    if (!payload) {
-        rc = -ENOMEM;
-    }
-
-    for (j = 0; j < cmds.msg.tx_len; j++)
-        payload[j] = data[7 + j];
-
-    cmds.msg.tx_buf = payload;
-    /*
-     * When DSI controller is not in initialized state, we do not want to
-     * report a false ESD failure and hence we defer until next read
-     * happen.
-     */
-    if (!dsi_ctrl_validate_host_state(ctrl->ctrl))
-        return 0;
-
-    if (cmds.last_command) {
-        cmds.msg.flags |= MIPI_DSI_MSG_LASTCOMMAND;
-        flags |= DSI_CTRL_CMD_LAST_COMMAND;
-    }
-    flags |= (DSI_CTRL_CMD_FETCH_MEMORY | DSI_CTRL_CMD_READ);
-
-    if (ctrl->ctrl->host_config.panel_mode == DSI_OP_VIDEO_MODE)
-        flags |= DSI_CTRL_CMD_CUSTOM_DMA_SCHED;
-
-    if (cmds.last_command) {
-        cmds.msg.flags |= MIPI_DSI_MSG_LASTCOMMAND;
-        flags |= DSI_CTRL_CMD_LAST_COMMAND;
-    }
-    if ((cmds.msg.flags & MIPI_DSI_MSG_CMD_DMA_SCHED) &&
-         (panel->panel_initialized))
-        flags |= DSI_CTRL_CMD_CUSTOM_DMA_SCHED;
-
-    cmds.msg.rx_buf = &gamma_120hz_1[0];
-    cmds.msg.rx_len = 44;
-    memcpy(&pw_cmds, &cmds, sizeof(struct dsi_cmd_desc));
-
-    rc = dsi_ctrl_cmd_transfer(ctrl->ctrl, &cmds);
-    if (rc <= 0) {
-        pr_err("rx cmd transfer failed rc=%d\n", rc);
-        goto error;
-    }
-
-    for (j = 0; j < 2; j++)
-        pr_debug("drm dsi gamma 120Hz B8 val %d = 0x%x, 0x%x, 0x%x, 0x%x, 0x%x, 0x%x, 0x%x, 0x%x, 0x%x, 0x%x,0x%x, 0x%x, 0x%x, 0x%x, 0x%x, 0x%x, 0x%x, 0x%x, 0x%x, 0x%x\n", j,
-                        gamma_120hz_1[j*20+0], gamma_120hz_1[j*20+1], gamma_120hz_1[j*20+2], gamma_120hz_1[j*20+3], gamma_120hz_1[j*20+4],
-                        gamma_120hz_1[j*20+5], gamma_120hz_1[j*20+6], gamma_120hz_1[j*20+7], gamma_120hz_1[j*20+8], gamma_120hz_1[j*20+9],
-                        gamma_120hz_1[j*20+10], gamma_120hz_1[j*20+11], gamma_120hz_1[j*20+12], gamma_120hz_1[j*20+13], gamma_120hz_1[j*20+14],
-                        gamma_120hz_1[j*20+15], gamma_120hz_1[j*20+16], gamma_120hz_1[j*20+17], gamma_120hz_1[j*20+18], gamma_120hz_1[j*20+19]);
-    
-    for (j = 0; j < 3; j++)
-        pr_debug("drm dsi gamma 120Hz B8 0x%x\n", gamma_120hz_1[40+j]);
-
-error:
-    return 0;
-}
-
-int dsi_display_read_120hz_gamma_0xB9_128(struct dsi_display_ctrl *ctrl,
-        struct dsi_panel *panel)
-{
-    int rc = 0;
-    struct dsi_cmd_desc cmds;
-    u8 data[] = {06, 01, 00, 01, 00, 00, 01, 0xB9};
-    u32 flags = 0;
-    u8 *payload;
-    int size, j;
-    struct mipi_dsi_device *dsi;
-
-    pr_info(" %s ++\n", __func__);
-
-    if (!panel || !ctrl || !ctrl->ctrl)
-        return -EINVAL;
-
-    dsi = &panel->mipi_device;
-
-    cmds.msg.type = data[0];
-    cmds.last_command = (data[1] == 1 ? true : false);
-    cmds.msg.channel = data[2];
-    cmds.msg.flags |= (data[3] == 1 ? MIPI_DSI_MSG_REQ_ACK : 0);
-    cmds.msg.ctrl = 0;
-    cmds.post_wait_ms = cmds.msg.wait_ms = data[4];
-    cmds.msg.tx_len = ((data[5] << 8) | (data[6]));
-
-    size = cmds.msg.tx_len * sizeof(u8);
-    payload = kzalloc(size, GFP_KERNEL);
-    if (!payload) {
-        rc = -ENOMEM;
-    }
-
-    for (j = 0; j < cmds.msg.tx_len; j++)
-        payload[j] = data[7 + j];
-
-    cmds.msg.tx_buf = payload;
-    /*
-     * When DSI controller is not in initialized state, we do not want to
-     * report a false ESD failure and hence we defer until next read
-     * happen.
-     */
-    if (!dsi_ctrl_validate_host_state(ctrl->ctrl))
-        return 0;
-
-    if (cmds.last_command) {
-        cmds.msg.flags |= MIPI_DSI_MSG_LASTCOMMAND;
-        flags |= DSI_CTRL_CMD_LAST_COMMAND;
-    }
-    flags |= (DSI_CTRL_CMD_FETCH_MEMORY | DSI_CTRL_CMD_READ);
-
-    if (ctrl->ctrl->host_config.panel_mode == DSI_OP_VIDEO_MODE)
-        flags |= DSI_CTRL_CMD_CUSTOM_DMA_SCHED;
-
-    if (cmds.last_command) {
-        cmds.msg.flags |= MIPI_DSI_MSG_LASTCOMMAND;
-        flags |= DSI_CTRL_CMD_LAST_COMMAND;
-    }
-    if ((cmds.msg.flags & MIPI_DSI_MSG_CMD_DMA_SCHED) &&
-         (panel->panel_initialized))
-        flags |= DSI_CTRL_CMD_CUSTOM_DMA_SCHED;
-
-    cmds.msg.rx_buf = &gamma_120hz_2[0];
-    cmds.msg.rx_len = 128;
-    memcpy(&pw_cmds, &cmds, sizeof(struct dsi_cmd_desc));
-
-    rc = dsi_ctrl_cmd_transfer(ctrl->ctrl, &cmds);
-    if (rc <= 0) {
-        pr_err("rx cmd transfer failed rc=%d\n", rc);
-        goto error;
-    }
-
-    for (j = 0; j < 6; j++)
-        pr_debug("drm dsi gamma 120Hz b9 1 val %d = 0x%x, 0x%x, 0x%x, 0x%x, 0x%x, 0x%x, 0x%x, 0x%x, 0x%x, 0x%x,0x%x, 0x%x, 0x%x, 0x%x, 0x%x, 0x%x, 0x%x, 0x%x, 0x%x, 0x%x\n", j,
-                        gamma_120hz_2[j*20+0], gamma_120hz_2[j*20+1], gamma_120hz_1[j*20+2], gamma_120hz_2[j*20+3], gamma_120hz_2[j*20+4],
-                        gamma_120hz_2[j*20+5], gamma_120hz_2[j*20+6], gamma_120hz_2[j*20+7], gamma_120hz_2[j*20+8], gamma_120hz_2[j*20+9],
-                        gamma_120hz_2[j*20+10], gamma_120hz_2[j*20+11], gamma_120hz_1[j*20+12], gamma_120hz_2[j*20+13], gamma_120hz_2[j*20+14],
-                        gamma_120hz_2[j*20+15], gamma_120hz_2[j*20+16], gamma_120hz_2[j*20+17], gamma_120hz_2[j*20+18], gamma_120hz_2[j*20+19]);
-    for (j = 0; j < 8; j++)
-        pr_debug("drm dsi gamma 120Hz B9 0x%x\n", gamma_120hz_2[120+j]);
-
-error:
-    return 0;
-}
-
-int dsi_display_read_120hz_gamma_0xB9_109(struct dsi_display_ctrl *ctrl,
-        struct dsi_panel *panel)
-{
-    int rc = 0;
-    struct dsi_cmd_desc cmds;
-    u8 data[] = {06, 01, 00, 01, 00, 00, 01, 0xB9};
-    u32 flags = 0;
-    u8 *payload;
-    int size, j;
-    struct mipi_dsi_device *dsi;
-
-    pr_info(" %s ++\n", __func__);
-
-    if (!panel || !ctrl || !ctrl->ctrl)
-        return -EINVAL;
-
-    dsi = &panel->mipi_device;
-
-    cmds.msg.type = data[0];
-    cmds.last_command = (data[1] == 1 ? true : false);
-    cmds.msg.channel = data[2];
-    cmds.msg.flags |= (data[3] == 1 ? MIPI_DSI_MSG_REQ_ACK : 0);
-    cmds.msg.ctrl = 0;
-    cmds.post_wait_ms = cmds.msg.wait_ms = data[4];
-    cmds.msg.tx_len = ((data[5] << 8) | (data[6]));
-
-    size = cmds.msg.tx_len * sizeof(u8);
-    payload = kzalloc(size, GFP_KERNEL);
-    if (!payload) {
-        rc = -ENOMEM;
-    }
-
-    for (j = 0; j < cmds.msg.tx_len; j++)
-        payload[j] = data[7 + j];
-
-    cmds.msg.tx_buf = payload;
-    /*
-     * When DSI controller is not in initialized state, we do not want to
-     * report a false ESD failure and hence we defer until next read
-     * happen.
-     */
-    if (!dsi_ctrl_validate_host_state(ctrl->ctrl))
-        return 0;
-
-    if (cmds.last_command) {
-        cmds.msg.flags |= MIPI_DSI_MSG_LASTCOMMAND;
-        flags |= DSI_CTRL_CMD_LAST_COMMAND;
-    }
-    flags |= (DSI_CTRL_CMD_FETCH_MEMORY | DSI_CTRL_CMD_READ);
-
-    if (ctrl->ctrl->host_config.panel_mode == DSI_OP_VIDEO_MODE)
-        flags |= DSI_CTRL_CMD_CUSTOM_DMA_SCHED;
-
-    if (cmds.last_command) {
-        cmds.msg.flags |= MIPI_DSI_MSG_LASTCOMMAND;
-        flags |= DSI_CTRL_CMD_LAST_COMMAND;
-    }
-    if ((cmds.msg.flags & MIPI_DSI_MSG_CMD_DMA_SCHED) &&
-         (panel->panel_initialized))
-        flags |= DSI_CTRL_CMD_CUSTOM_DMA_SCHED;
-
-    cmds.msg.rx_buf = &gamma_120hz_2[128];
-    cmds.msg.rx_len = 109;
-    memcpy(&pw_cmds, &cmds, sizeof(struct dsi_cmd_desc));
-
-    rc = dsi_ctrl_cmd_transfer(ctrl->ctrl, &cmds);
-    if (rc <= 0) {
-        pr_err("rx cmd transfer failed rc=%d\n", rc);
-        goto error;
-    }
-
-    for (j = 5; j < 8; j++)
-        pr_debug("drm dsi gamma 120Hz B9 2 val %d = 0x%x, 0x%x, 0x%x, 0x%x, 0x%x, 0x%x, 0x%x, 0x%x, 0x%x, 0x%x,0x%x, 0x%x, 0x%x, 0x%x, 0x%x, 0x%x, 0x%x, 0x%x, 0x%x, 0x%x\n", j,
-                        gamma_120hz_2[j*20+0], gamma_120hz_2[j*20+1], gamma_120hz_1[j*20+2], gamma_120hz_2[j*20+3], gamma_120hz_2[j*20+4],
-                        gamma_120hz_2[j*20+5], gamma_120hz_2[j*20+6], gamma_120hz_2[j*20+7], gamma_120hz_2[j*20+8], gamma_120hz_2[j*20+9],
-                        gamma_120hz_2[j*20+10], gamma_120hz_2[j*20+11], gamma_120hz_1[j*20+12], gamma_120hz_2[j*20+13], gamma_120hz_2[j*20+14],
-                        gamma_120hz_2[j*20+15], gamma_120hz_2[j*20+16], gamma_120hz_2[j*20+17], gamma_120hz_2[j*20+18], gamma_120hz_2[j*20+19]);
-
-error:
-    return 0;
-}
-
-int dsi_display_read_120hz_gamma_0xBA_63(struct dsi_display_ctrl *ctrl,
-        struct dsi_panel *panel)
-{
-    int rc = 0;
-    struct dsi_cmd_desc cmds;
-    u8 data[] = {06, 01, 00, 01, 00, 00, 01, 0xBA};
-    u32 flags = 0;
-    u8 *payload;
-    int size, j;
-    struct mipi_dsi_device *dsi;
-
-    pr_info(" %s ++\n", __func__);
-
-    if (!panel || !ctrl || !ctrl->ctrl)
-        return -EINVAL;
-
-    dsi = &panel->mipi_device;
-
-    cmds.msg.type = data[0];
-    cmds.last_command = (data[1] == 1 ? true : false);
-    cmds.msg.channel = data[2];
-    cmds.msg.flags |= (data[3] == 1 ? MIPI_DSI_MSG_REQ_ACK : 0);
-    cmds.msg.ctrl = 0;
-    cmds.post_wait_ms = cmds.msg.wait_ms = data[4];
-    cmds.msg.tx_len = ((data[5] << 8) | (data[6]));
-
-    size = cmds.msg.tx_len * sizeof(u8);
-    payload = kzalloc(size, GFP_KERNEL);
-    if (!payload) {
-        rc = -ENOMEM;
-    }
-
-    for (j = 0; j < cmds.msg.tx_len; j++)
-        payload[j] = data[7 + j];
-
-    cmds.msg.tx_buf = payload;
-    /*
-     * When DSI controller is not in initialized state, we do not want to
-     * report a false ESD failure and hence we defer until next read
-     * happen.
-     */
-    if (!dsi_ctrl_validate_host_state(ctrl->ctrl))
-        return 0;
-
-    if (cmds.last_command) {
-        cmds.msg.flags |= MIPI_DSI_MSG_LASTCOMMAND;
-        flags |= DSI_CTRL_CMD_LAST_COMMAND;
-    }
-    flags |= (DSI_CTRL_CMD_FETCH_MEMORY | DSI_CTRL_CMD_READ);
-
-    if (ctrl->ctrl->host_config.panel_mode == DSI_OP_VIDEO_MODE)
-        flags |= DSI_CTRL_CMD_CUSTOM_DMA_SCHED;
-
-    if (cmds.last_command) {
-        cmds.msg.flags |= MIPI_DSI_MSG_LASTCOMMAND;
-        flags |= DSI_CTRL_CMD_LAST_COMMAND;
-    }
-    if ((cmds.msg.flags & MIPI_DSI_MSG_CMD_DMA_SCHED) &&
-         (panel->panel_initialized))
-        flags |= DSI_CTRL_CMD_CUSTOM_DMA_SCHED;
-
-    cmds.msg.rx_buf = &gamma_120hz_3[0];
-    cmds.msg.rx_len = 63;
-    memcpy(&pw_cmds, &cmds, sizeof(struct dsi_cmd_desc));
-
-    rc = dsi_ctrl_cmd_transfer(ctrl->ctrl, &cmds);
-    if (rc <= 0) {
-        pr_err("rx cmd transfer failed rc=%d\n", rc);
-        goto error;
-    }
-
-    for (j = 0; j < 3; j++)
-        pr_debug("drm dsi gamma 120Hz BA val %d = 0x%x, 0x%x, 0x%x, 0x%x, 0x%x, 0x%x, 0x%x, 0x%x, 0x%x, 0x%x,0x%x, 0x%x, 0x%x, 0x%x, 0x%x, 0x%x, 0x%x, 0x%x, 0x%x, 0x%x\n", j,
-                        gamma_120hz_3[j*20+0], gamma_120hz_3[j*20+1], gamma_120hz_3[j*20+2], gamma_120hz_3[j*20+3], gamma_120hz_3[j*20+4],
-                        gamma_120hz_3[j*20+5], gamma_120hz_3[j*20+6], gamma_120hz_3[j*20+7], gamma_120hz_3[j*20+8], gamma_120hz_3[j*20+9],
-                        gamma_120hz_3[j*20+10], gamma_120hz_3[j*20+11], gamma_120hz_3[j*20+12], gamma_120hz_3[j*20+13], gamma_120hz_3[j*20+14],
-                        gamma_120hz_3[j*20+15], gamma_120hz_3[j*20+16], gamma_120hz_3[j*20+17], gamma_120hz_3[j*20+18], gamma_120hz_3[j*20+19]);
-
-error:
-    return 0;
-}
-
-int dsi_display_read_120hz_gamma(struct dsi_display *display)
-{
-    struct mipi_dsi_device *dsi;
-    struct dsi_display_ctrl  *ctrl;
-    struct dsi_panel *panel = display->panel;
-    int rc = 0, i;
-    u32 checksum = 0;
-
-    ctrl = &display->ctrl[display->cmd_master_idx];
-
-    pr_info(" ++\n");
-
-    if (!panel || !ctrl || !ctrl->ctrl)
-        return -EINVAL;
-
-    dsi = &panel->mipi_device;
-    rc = mipi_dsi_dcs_120hz_gamma_read1_enable(dsi);
-
-    if (rc)
-        return rc;
-    
-    rc = dsi_display_read_120hz_gamma_0xB8_44(ctrl, display->panel);
-    if (rc)
-        goto error;
-        
-    rc = dsi_display_read_120hz_gamma_0xB9_128(ctrl, display->panel);
-    if (rc)
-        goto error;
-
-    rc = mipi_dsi_dcs_120hz_gamma_read2_enable(dsi);
-    if (rc)
-        goto error;
-        
-    rc = dsi_display_read_120hz_gamma_0xB9_109(ctrl, display->panel);
-    if (rc)
-        goto error;
-        
-    rc = dsi_display_read_120hz_gamma_0xBA_63(ctrl, display->panel);
-    
-    for (i = 0; i < 44; i++)
-        checksum += gamma_120hz_1[i];
-    for (i = 0; i < 237; i++)
-        checksum += gamma_120hz_2[i];
-    for (i = 0; i < 63; i++)
-        checksum += gamma_120hz_3[i];
-        
-    pr_info("drm 120Hz checksum = 0x%x\n", checksum);
-
-error:
-    rc = mipi_dsi_dcs_120hz_gamma_read_disable(dsi);
-
-    return rc;
-}
-
-#ifdef CONFIG_TARGET_PRODUCT_DIABLO
-int dsi_display_read_8s(struct dsi_display *display)
-{
-	struct mipi_dsi_device *dsi;
-	struct dsi_display_ctrl  *ctrl;
-	struct dsi_panel *panel = display->panel;
-
-	ctrl = &display->ctrl[display->cmd_master_idx];
+	panel = dsi_display->panel;
+	ctrl = &dsi_display->ctrl[dsi_display->cmd_master_idx];
 
 	pr_info(" ++\n");
 
 	if (!panel || !ctrl || !ctrl->ctrl)
 		return -EINVAL;
 
-	dsi = &panel->mipi_device;
+	dsi_display_get_90hz_gamma(ctrl, panel);
 
-	dsi_display_read_cellid(ctrl, panel);
+	memcpy(gamma_90hz_b8, gamma_90hz_1, 44);
+	memcpy(gamma_90hz_b9, &gamma_90hz_1[44], 156);
+	memcpy(&gamma_90hz_b9[156], gamma_90hz_2, 81);
+	memcpy(gamma_90hz_ba, &gamma_90hz_2[81], 63);
 
-	return 0;
-}
-#endif
+	if (dsi_gamma_read == 1 && now_fps == 90)
+		mipi_dsi_dcs_90hz_gamma_set(&panel->mipi_device);
 
-int dsi_display_enable_read_gamma(struct dsi_display *display)
-{
-    int rc = 0;
-    static int num = 0;
-    
-    if (dsi_gamma_read == 1 || num > 5)
-        return 0;
-        
-#ifdef CONFIG_TARGET_PRODUCT_DIABLO
-    rc = dsi_display_read_8s(display);
-#endif
-
-    rc = dsi_display_read_90hz_gamma(display);
-    rc = dsi_display_read_120hz_gamma(display);
-
-    num++;
-    return rc;
+	num++;
+	return rc;
 }
 
-static int dsi_display_gamma_90_120(struct dsi_display *display)
+int dsi_display_read_dc(struct dsi_display_ctrl *ctrl, struct dsi_panel *panel,
+			u8 cmd_reg, u32 rx_len, u8 *rx_buf)
 {
 	int rc = 0;
-	struct dsi_display_ctrl *m_ctrl;
+	struct dsi_cmd_desc cmds;
+	u8 *payload;
+	u32 flags = 0;
 
-	DSI_DEBUG(" ++\n");
+	pr_info(" %s ++\n", __func__);
 
-	m_ctrl = &display->ctrl[display->cmd_master_idx];
-
-	if (display->tx_cmd_buf == NULL) {
-		rc = dsi_host_alloc_cmd_tx_buffer(display);
-		if (rc) {
-			DSI_ERR("failed to allocate cmd tx buffer memory\n");
-			goto done;
-		}
-	}
-
-	rc = dsi_display_cmd_engine_enable(display);
-	if (rc) {
-		DSI_ERR("cmd engine enable failed\n");
-		return -EPERM;
-	}
-
-	rc = dsi_display_enable_read_gamma(display);
-	if (rc != 0) {
-		DSI_ERR("[%s] read_gamma failed on master,rc=%d\n",
-		       display->name, rc);
-		goto exit;
-	}
-
-	if (!display->panel->sync_broadcast_en)
-		goto exit;
-exit:
-	dsi_display_cmd_engine_disable(display);
-done:
-	return rc;
-}
-
-int dsi_display_read_gamma(struct drm_connector *connector, void *display)
-{
-	struct dsi_display *dsi_display = display;
-	struct dsi_panel *panel;
-	int rc = 0x1, ret;
-	u32 mask;
-	return 0;
-	if (!dsi_display || !dsi_display->panel)
+	if (!ctrl || !panel || !ctrl->ctrl)
 		return -EINVAL;
 
-	panel = dsi_display->panel;
+	payload = kzalloc(sizeof(u8), GFP_KERNEL);
+	if (!payload)
+		return -ENOMEM;
 
-	dsi_panel_acquire_panel_lock(panel);
+	payload[0] = cmd_reg;
 
-	if (!panel->panel_initialized) {
-		DSI_DEBUG("Panel not initialized\n");
-		goto release_panel_lock;
+	memset(&cmds, 0, sizeof(cmds));
+	cmds.msg.type = 0x06;
+	cmds.last_command = true;
+	cmds.msg.channel = 0;
+	cmds.msg.flags = MIPI_DSI_MSG_REQ_ACK | MIPI_DSI_MSG_LASTCOMMAND;
+	cmds.msg.tx_len = 1;
+	cmds.msg.tx_buf = payload;
+	cmds.msg.rx_len = rx_len;
+	cmds.msg.rx_buf = rx_buf;
+
+	if (!dsi_ctrl_validate_host_state(ctrl->ctrl)) {
+		kfree(payload);
+		return 0;
 	}
 
-	ret = dsi_display_clk_ctrl(dsi_display->dsi_clk_handle,
-		DSI_ALL_CLKS, DSI_CLK_ON);
-	if (ret)
-		goto release_panel_lock;
+	flags = DSI_CTRL_CMD_FETCH_MEMORY | DSI_CTRL_CMD_READ;
+	cmds.ctrl_flags = flags;
 
-	/* Mask error interrupts before attempting ESD read */
-	mask = BIT(DSI_FIFO_OVERFLOW) | BIT(DSI_FIFO_UNDERFLOW);
-	dsi_display_mask_ctrl_error_interrupts(dsi_display, mask, true);
+	dsi_display_set_cmd_tx_ctrl_flags(panel, &cmds);
 
-	rc = dsi_display_gamma_90_120(dsi_display);
+	rc = dsi_ctrl_transfer_prepare(ctrl->ctrl, cmds.ctrl_flags);
+	if (rc) {
+		DSI_ERR("prepare for rx cmd transfer failed rc=%d\n", rc);
+		kfree(payload);
+		return rc;
+	}
 
-	dsi_display_clk_ctrl(dsi_display->dsi_clk_handle,
-		DSI_ALL_CLKS, DSI_CLK_OFF);
+	rc = dsi_ctrl_cmd_transfer(ctrl->ctrl, &cmds);
+	if (rc <= 0)
+		pr_err("rx cmd transfer failed rc=%d\n", rc);
 
-release_panel_lock:
-	dsi_panel_release_panel_lock(panel);
-	SDE_EVT32(SDE_EVTLOG_FUNC_EXIT, rc);
+	dsi_ctrl_transfer_unprepare(ctrl->ctrl, cmds.ctrl_flags);
+	kfree(payload);
 
+	return rc > 0 ? 0 : rc;
+}
+
+int dsi_display_read_60hz_dc(struct dsi_display *display)
+{
+	static int num = 0;
+	struct dsi_display_ctrl *ctrl;
+	struct dsi_panel *panel;
+	u8 val1[] = { 0x55, 0xaa, 0x52, 0x08, 0x04 };
+	int rc = 0, i;
+
+	if (dsi_dc_read == 1 || num > 5)
+		return 0;
+
+	if (!display || display->cmd_master_idx >= MAX_DSI_CTRLS)
+		return -EINVAL;
+
+	panel = display->panel;
+	ctrl = &display->ctrl[display->cmd_master_idx];
+	if (!panel || !ctrl || !ctrl->ctrl)
+		return -EINVAL;
+
+	pr_info("drm dsi mipi_dsi_dcs_dc_page4  enter\n");
+	rc = mipi_dsi_dcs_write(&panel->mipi_device, 0xf0, val1, sizeof(val1));
+
+	dsi_display_read_dc(ctrl, panel, 0xd2, 75, dc_D2);
+
+	pr_info("drm dsi mipi_dsi_dcs_dc_page4  enter\n");
+	rc = mipi_dsi_dcs_write(&panel->mipi_device, 0xf0, val1, sizeof(val1));
+
+	rc = dsi_display_read_dc(ctrl, panel, 0xe7, 75, dc_E7);
+
+	pr_info("drm: ------DUMP 60Hz REG D2 START------\n");
+	for (i = 0; i < 75; i += 5)
+		pr_info("0x%x, 0x%x, 0x%x, 0x%x, 0x%x\n",
+			dc_D2[i], dc_D2[i+1], dc_D2[i+2], dc_D2[i+3], dc_D2[i+4]);
+	pr_info("drm: ------DUMP 60Hz REG D2 END------\n");
+
+	pr_info("drm: ------DUMP 60Hz REG E7 START------\n");
+	for (i = 0; i < 75; i += 5)
+		pr_info("0x%x, 0x%x, 0x%x, 0x%x, 0x%x\n",
+			dc_E7[i], dc_E7[i+1], dc_E7[i+2], dc_E7[i+3], dc_E7[i+4]);
+	pr_info("drm: ------DUMP 60Hz REG E7 END------\n");
+
+	memcpy(&cmd7_off[8], dc_D2, 75);
+	memcpy(&cmd7_on[8], dc_E7, 75);
+
+	dsi_display_dc_creat_cmd();
+
+	dsi_dc_read = 1;
+	num++;
 	return rc;
 }
-
-#ifdef CONFIG_TARGET_PRODUCT_HALO
-int dsi_display_dc_creat_cmd(struct dsi_display *display, struct dsi_panel *panel)
-{
-    int rc = 0;
-
-    rc = dsi_panel_create_cmd_packets(dc_preamble_payload,
-                      ARRAY_SIZE(dc_preamble_payload),
-                      1,
-                      &dc_on_cmds);
-    if (rc)
-        goto error;
-
-    rc = dsi_panel_create_cmd_packets(dc_b2_payload,
-                      ARRAY_SIZE(dc_b2_payload),
-                      1,
-                      &panel->cmd_sets[DSI_CMD_SET_DC_ON].cmds[1]);
-    if (rc)
-        goto error;
-
-    rc = dsi_panel_create_cmd_packets(dc_6f_payload,
-                      ARRAY_SIZE(dc_6f_payload),
-                      1,
-                      &panel->cmd_sets[DSI_CMD_SET_DC_ON].cmds[2]);
-    if (rc)
-        goto error;
-
-    rc = dsi_panel_create_cmd_packets(dc_b2_ext_payload,
-                      ARRAY_SIZE(dc_b2_ext_payload),
-                      1,
-                      &panel->cmd_sets[DSI_CMD_SET_DC_ON].cmds[3]);
-    if (rc)
-        goto error;
-
-    rc = dsi_panel_create_cmd_packets(dc_b3_on_payload,
-                      ARRAY_SIZE(dc_b3_on_payload),
-                      1,
-                      &panel->cmd_sets[DSI_CMD_SET_DC_ON].cmds[4]);
-    if (rc)
-        goto error;
-
-    rc = dsi_panel_create_cmd_packets(dc_f0_page4_payload,
-                      ARRAY_SIZE(dc_f0_page4_payload),
-                      1,
-                      &panel->cmd_sets[DSI_CMD_SET_DC_ON].cmds[5]);
-    if (rc)
-        goto error;
-
-    rc = dsi_panel_create_cmd_packets(cmd7_on.cmds->msg.tx_buf,
-                      cmd7_on.cmds->msg.tx_len,
-                      1,
-                      &panel->cmd_sets[DSI_CMD_SET_DC_ON].cmds[6]);
-    if (rc)
-        goto error;
-
-    rc = dsi_panel_create_cmd_packets(dc_58_on_payload,
-                      ARRAY_SIZE(dc_58_on_payload),
-                      1,
-                      &panel->cmd_sets[DSI_CMD_SET_DC_ON].cmds[7]);
-    if (rc)
-        goto error;
-
-    rc = dsi_panel_create_cmd_packets(dc_preamble_payload,
-                      ARRAY_SIZE(dc_preamble_payload),
-                      1,
-                      &dc_off_cmds);
-    if (rc)
-        goto error;
-
-    rc = dsi_panel_create_cmd_packets(dc_b2_payload,
-                      ARRAY_SIZE(dc_b2_payload),
-                      1,
-                      &panel->cmd_sets[DSI_CMD_SET_DC_OFF].cmds[1]);
-    if (rc)
-        goto error;
-
-    rc = dsi_panel_create_cmd_packets(dc_b3_off_payload,
-                      ARRAY_SIZE(dc_b3_off_payload),
-                      1,
-                      &panel->cmd_sets[DSI_CMD_SET_DC_OFF].cmds[2]);
-    if (rc)
-        goto error;
-
-    rc = dsi_panel_create_cmd_packets(dc_6f_payload,
-                      ARRAY_SIZE(dc_6f_payload),
-                      1,
-                      &panel->cmd_sets[DSI_CMD_SET_DC_OFF].cmds[3]);
-    if (rc)
-        goto error;
-
-    rc = dsi_panel_create_cmd_packets(dc_b2_ext_payload,
-                      ARRAY_SIZE(dc_b2_ext_payload),
-                      1,
-                      &panel->cmd_sets[DSI_CMD_SET_DC_OFF].cmds[4]);
-    if (rc)
-        goto error;
-
-    rc = dsi_panel_create_cmd_packets(dc_f0_page4_payload,
-                      ARRAY_SIZE(dc_f0_page4_payload),
-                      1,
-                      &panel->cmd_sets[DSI_CMD_SET_DC_OFF].cmds[5]);
-    if (rc)
-        goto error;
-
-    rc = dsi_panel_create_cmd_packets(cmd7_off.cmds->msg.tx_buf,
-                      cmd7_off.cmds->msg.tx_len,
-                      1,
-                      &panel->cmd_sets[DSI_CMD_SET_DC_OFF].cmds[6]);
-    if (rc)
-        goto error;
-
-    rc = dsi_panel_create_cmd_packets(dc_58_off_payload,
-                      ARRAY_SIZE(dc_58_off_payload),
-                      1,
-                      &panel->cmd_sets[DSI_CMD_SET_DC_OFF].cmds[7]);
-
-error:
-    return rc;
-}
-#endif /* dsi_display_dc_creat_cmd */
-
 #endif
 
 
@@ -2351,6 +1915,9 @@ int dsi_display_check_status(struct drm_connector *connector, void *display,
 	} else if (status_mode == ESD_MODE_SW_BTA) {
 		rc = dsi_display_status_bta_request(dsi_display);
 	} else if (status_mode == ESD_MODE_PANEL_TE) {
+#ifdef CONFIG_TARGET_PRODUCT_HALO
+		dsi_display_read_60hz_dc(dsi_display);
+#endif
 		rc = dsi_display_status_check_te(dsi_display, te_rechecks);
 		te_check_override = false;
 	} else {
@@ -9194,7 +8761,7 @@ error:
 	return rc;
 }
 
-#ifdef CONFIG_TARGET_PRODUCT_DIABLO
+#if defined(CONFIG_TARGET_PRODUCT_HALO) || defined(CONFIG_TARGET_PRODUCT_DIABLO)
 unsigned int old_fps = 60;
 unsigned int now_fps = 60;
 #endif
@@ -9253,7 +8820,7 @@ int dsi_display_set_mode(struct dsi_display *display,
 			timing.h_active, timing.v_active, timing.refresh_rate,
 			adj_mode.priv_info->clk_rate_hz);
 
-#ifdef CONFIG_TARGET_PRODUCT_DIABLO
+#if defined(CONFIG_TARGET_PRODUCT_HALO) || defined(CONFIG_TARGET_PRODUCT_DIABLO)
 	now_fps = timing.refresh_rate;
 #endif
 	memcpy(display->panel->cur_mode, &adj_mode, sizeof(adj_mode));

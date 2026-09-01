@@ -47,8 +47,8 @@
 
 #ifdef CONFIG_TARGET_PRODUCT_HALO
 int dsi_dc_read = 0;
-struct dsi_dc_cmd_set dc_on_cmds;
-struct dsi_dc_cmd_set dc_off_cmds;
+struct dsi_cmd_desc dc_on_cmds[8];
+struct dsi_cmd_desc dc_off_cmds[8];
 #endif
 
 static void dsi_dce_prepare_pps_header(char *buf, u32 pps_delay_ms)
@@ -770,50 +770,41 @@ int dsi_panel_loading_setup(struct dsi_panel *panel, bool status)
 #endif
 
 #ifdef CONFIG_TARGET_PRODUCT_HALO
-void dsi_panel_dc_cmd_set(struct dsi_panel *panel,
-                                  struct dsi_dc_cmd_set *set)
+void dsi_panel_dc_cmd_set(struct dsi_panel *panel, struct dsi_cmd_desc *cmds)
 {
-    int rc, i;
+	int rc, i;
 
-    if (!panel || !panel->host)
-        return;
+	if (!panel || !panel->host)
+		return;
 
-    for (i = 0; i < 8; i++) {
-        rc = dsi_host_transfer_sub(panel->host, set->cmds[i].cmds);
-        if (rc < 0) {
-            DSI_ERR("failed to set dc cmds, rc=%d\n", rc);
-            return;
-        }
-        if (set->cmds[i].post_wait_ms)
-            usleep_range(set->cmds[i].post_wait_ms * 1000,
-                         set->cmds[i].post_wait_ms * 1000 + 10);
-    }
+	for (i = 0; i < 8; i++) {
+		cmds[i].ctrl_flags = 0;
+		rc = dsi_host_transfer_sub(panel->host, &cmds[i]);
+		if (rc < 0) {
+			DSI_ERR("failed to set dc cmds, rc=%d\n", rc);
+			return;
+		}
+		if (cmds[i].post_wait_ms)
+			usleep_range(cmds[i].post_wait_ms * 1000,
+				     cmds[i].post_wait_ms * 1000 + 10);
+	}
 }
 
 int dsi_panel_dc_setup(struct dsi_panel *panel, bool enable)
 {
-    int rc = 0;
+	if (!panel) {
+		pr_err("Invalid params\n");
+		return -EINVAL;
+	}
 
-    if (!panel) {
-        pr_err("Invalid params\n");
-        return -EINVAL;
-    }
+	if (dsi_dc_read == 1) {
+		if (enable)
+			dsi_panel_dc_cmd_set(panel, dc_on_cmds);
+		else
+			dsi_panel_dc_cmd_set(panel, dc_off_cmds);
+	}
 
-    pr_debug("%s: enable=%d\n", __func__, enable);
-
-    if (dsi_dc_read == 1) {
-        if (enable) {
-            rc = dsi_panel_tx_cmd_set(panel, DSI_CMD_SET_DC_ON);
-            if (rc)
-                pr_err("failed to transmit DC ON cmd, rc=%d\n", rc);
-        } else {
-            rc = dsi_panel_tx_cmd_set(panel, DSI_CMD_SET_DC_OFF);
-            if (rc)
-                pr_err("failed to transmit DC OFF cmd, rc=%d\n", rc);
-        }
-    }
-
-    return rc;
+	return 0;
 }
 #endif
 
@@ -5055,7 +5046,7 @@ int dsi_panel_switch_cmd_mode_in(struct dsi_panel *panel)
 	return rc;
 }
 
-#ifdef CONFIG_TARGET_PRODUCT_DIABLO
+#if defined(CONFIG_TARGET_PRODUCT_HALO) || defined(CONFIG_TARGET_PRODUCT_DIABLO)
 extern unsigned int old_fps;
 extern unsigned int now_fps;
 extern int dsi_gamma_read;
@@ -5077,7 +5068,7 @@ int dsi_panel_switch(struct dsi_panel *panel)
         DSI_ERR("[%s] failed to send DSI_CMD_SET_TIMING_SWITCH cmds, rc=%d\n",
                panel->name, rc);
 
-#ifdef CONFIG_TARGET_PRODUCT_DIABLO
+#if defined(CONFIG_TARGET_PRODUCT_HALO) || defined(CONFIG_TARGET_PRODUCT_DIABLO)
     if (dsi_gamma_read == 1) {
         if ((old_fps != 90) && (now_fps == 90)) {
             mipi_dsi_dcs_90hz_gamma_set(&panel->mipi_device);
@@ -5146,6 +5137,15 @@ int dsi_panel_enable(struct dsi_panel *panel)
 		}
 	}
 	panel->panel_initialized = true;
+
+#ifdef CONFIG_TARGET_PRODUCT_HALO
+	if ((dsi_panel_dc_on == 1) && (dsi_dc_read == 1)) {
+		dsi_panel_dc_cmd_set(panel, dc_on_cmds);
+	}
+	DSI_INFO("%s, fps = %d, dc = %d\n", __func__,
+		 panel->cur_mode->timing.refresh_rate, dsi_panel_dc_on);
+#endif
+
 #ifdef CONFIG_TARGET_PRODUCT_ASPHALT
 	DSI_ERR ("%s\n", __func__);
 #endif

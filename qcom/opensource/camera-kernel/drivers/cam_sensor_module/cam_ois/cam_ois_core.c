@@ -15,6 +15,9 @@
 #include "cam_res_mgr_api.h"
 #include "cam_common_util.h"
 #include "cam_packet_util.h"
+#if defined(CONFIG_TARGET_PRODUCT_HALO) || defined(CONFIG_TARGET_PRODUCT_DIABLO)
+#include "dw9781.h"
+#endif
 
 int32_t cam_ois_construct_default_power_setting(
 	struct cam_sensor_power_ctrl_t *power_info)
@@ -374,6 +377,20 @@ static int cam_ois_fw_download(struct cam_ois_ctrl_t *o_ctrl)
 		return -EINVAL;
 	}
 
+#if defined(CONFIG_TARGET_PRODUCT_HALO) || defined(CONFIG_TARGET_PRODUCT_DIABLO)
+	if (strcmp(o_ctrl->ois_name, "dw9781c") == 0 || strcmp(o_ctrl->ois_name, "dw9781") == 0) {
+		char name[32];
+		snprintf(name, sizeof(name), "%s.bin", o_ctrl->ois_name);
+		CAM_INFO(CAM_OIS, "LENOVO OIS firmware name:%s", name);
+		rc = dw9781_ois_check_and_fw_download(o_ctrl, name);
+		if (rc) {
+			CAM_ERR(CAM_OIS, "LENOVO OIS firmware %s check and download failed, rc %d", name, rc);
+			return rc;
+		}
+		return 0;
+	}
+#endif
+
 	snprintf(name_coeff, 32, "%s.coeff", o_ctrl->ois_name);
 
 	snprintf(name_prog, 32, "%s.prog", o_ctrl->ois_name);
@@ -727,7 +744,26 @@ static int cam_ois_pkt_parse(struct cam_ois_ctrl_t *o_ctrl, void *arg)
 			CAM_DBG(CAM_OIS, "apply Init settings success");
 		}
 
+#if defined(CONFIG_TARGET_PRODUCT_HALO) || defined(CONFIG_TARGET_PRODUCT_DIABLO)
+		if (strcmp(o_ctrl->ois_name, "dw9781c") == 0 || strcmp(o_ctrl->ois_name, "dw9781") == 0) {
+			char name[64];
+			snprintf(name, sizeof(name), "%s.bin", o_ctrl->ois_name);
+			rc = dw9781_ois_reset_and_check(o_ctrl, name);
+			if (rc) {
+				CAM_ERR(CAM_OIS, "OIS reset and check failed.");
+			}
+		}
+#endif
+
 		if (o_ctrl->is_ois_calib) {
+#if defined(CONFIG_TARGET_PRODUCT_HALO) || defined(CONFIG_TARGET_PRODUCT_DIABLO)
+			if (strcmp(o_ctrl->ois_name, "dw9781c") == 0 || strcmp(o_ctrl->ois_name, "dw9781") == 0) {
+				rc = dw9781_ois_gyro_offset_calibration(o_ctrl);
+				if (rc) {
+					CAM_ERR(CAM_OIS, "OIS calibration failed");
+				}
+			}
+#endif
 			rc = cam_ois_apply_settings(o_ctrl,
 				&o_ctrl->i2c_calib_data);
 			if ((rc == -EAGAIN) &&
@@ -889,6 +925,17 @@ static int cam_ois_pkt_parse(struct cam_ois_ctrl_t *o_ctrl, void *arg)
 				o_ctrl->cam_ois_state);
 			goto end;
 		}
+
+#if defined(CONFIG_TARGET_PRODUCT_HALO) || defined(CONFIG_TARGET_PRODUCT_DIABLO)
+		if (strcmp(o_ctrl->ois_name, "dw9781c") == 0 || strcmp(o_ctrl->ois_name, "dw9781") == 0) {
+			rc = dw9781_ois_apply_QTime(o_ctrl);
+			if (rc) {
+				CAM_ERR(CAM_OIS, "Fail apply Qtimer: rc: %d", rc);
+				goto end;
+			}
+			break;
+		}
+#endif
 		offset = (uint32_t *)&csl_packet->payload;
 		offset += (csl_packet->cmd_buf_offset / sizeof(uint32_t));
 		cmd_desc = (struct cam_cmd_buf_desc *)(offset);

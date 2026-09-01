@@ -116,6 +116,9 @@ static const struct camera_submodule_component camera_sensor[] = {
 	{&cam_sensor_driver_init, &cam_sensor_driver_exit},
 	{&cam_eeprom_driver_init, &cam_eeprom_driver_exit},
 	{&cam_ois_driver_init, &cam_ois_driver_exit},
+#if defined(CONFIG_TARGET_PRODUCT_HALO) || defined(CONFIG_TARGET_PRODUCT_DIABLO)
+	{&dw9781_init, &dw9781_exit},
+#endif
 	{&cam_flash_init_module, &cam_flash_exit_module},
 #endif
 };

@@ -14,6 +14,104 @@
 
 #define WL_SLAVE_ADDRESS              0x52
 
+#ifdef CONFIG_TARGET_PRODUCT_HALO
+static bool cam0_val_status = FALSE;
+static bool cam1_val_status = FALSE;
+static bool cam2_val_status = FALSE;
+static bool cam3_val_status = FALSE;
+
+static cam_power_ctrl_t *power_ctrl = NULL;
+
+#define CAM0_LDO_ON_REG_VALUE         0x25
+#define CAM1_LDO_ON_REG_VALUE         0x00
+#define CAM2_LDO_ON_REG_VALUE         0x1a
+#define CAM3_LDO_ON_REG_VALUE         0x08
+#define CAM_LDO_OFF_REG_VALUE         0x00
+
+static struct cam_sensor_i2c_reg_array init_reg_setting[] = {
+	{0x01, 0x40,                  0x1, 0x0},
+	{0x02, 0x00,                  0x1, 0x0},
+	{0x03, 0x30,                  0x1, 0x0},
+	{0x04, 0x30,                  0x1, 0x0},
+	{0x05, 0x80,                  0x1, 0x0},
+	{0x06, 0x80,                  0x1, 0x0},
+	{0x07, 0x80,                  0x1, 0x0},
+	{0x08, 0x80,                  0x1, 0x0},
+	{0x09, 0x80,                  0x1, 0x0},
+	{0x0A, 0x00,                  0x1, 0x0},
+	{0x0B, 0x00,                  0x1, 0x0},
+	{0x0C, 0x00,                  0x1, 0x0},
+	{0x0D, 0x00,                  0x1, 0x0},
+	{0x0E, 0x00,                  0x1, 0x0},
+	{0x0F, 0x00,                  0x1, 0x0},
+};
+
+static struct cam_sensor_i2c_reg_array cam0_reg_on_setting[] = {
+	{0x03, 0x28,                  0x1, 0x0}, //cam0 ldo1 dvdd  1.1V
+	{0x05, 0x87,                  0x1, 0x0}, //cam0 ldo3 avdd  2.87V
+	{0x08, 0x80,                  0x1, 0x0}, //cam0 ldo6 afvdd 2.8V
+	{0x01, 0x2F,                  0x1, 0x0}, //Higher current limit
+	{0x0E, CAM0_LDO_ON_REG_VALUE, 0x1, 0x0}, //enable ldo1, ldo3, ldo6
+};
+
+static struct cam_sensor_i2c_reg_array cam2_reg_on_setting[] = {
+	{0x04, 0x20,                  0x1, 0x0}, //cam2 ldo2 dvdd 1.05V
+	{0x06, 0x80,                  0x1, 0x0}, //cam2 ldo4 avdd 2.8V
+	{0x07, 0x80,                  0x1, 0x0}, //cam2 ldo5 afvdd 2.8V
+	{0x01, 0x2F,                  0x1, 0x0}, //Higher current limit
+	{0x0E, CAM2_LDO_ON_REG_VALUE, 0x1, 0x0}, //enable ldo2, ldo4, ldo5
+};
+
+static struct cam_sensor_i2c_reg_array cam3_reg_on_setting[] = {
+	{0x06, 0x80,                  0x1, 0x0}, //cam3 ldo4 avdd 2.8V
+	{0x01, 0x2F,                  0x1, 0x0}, //Higher current limit
+	{0x0E, CAM3_LDO_ON_REG_VALUE, 0x1, 0x0}, //enable ldo4
+};
+
+static struct cam_sensor_i2c_reg_array cam_reg_off_setting[] = {
+	{0x0E, CAM_LDO_OFF_REG_VALUE, 0x2, 0x0}, //disable all
+};
+
+static struct cam_sensor_i2c_reg_setting wl_init_reg_setting = {
+	.reg_setting = init_reg_setting,
+	.size = 15,
+	.addr_type = CAMERA_SENSOR_I2C_TYPE_BYTE,
+	.data_type = CAMERA_SENSOR_I2C_TYPE_BYTE,
+	.delay = 0,
+};
+
+static struct cam_sensor_i2c_reg_setting wl_cam0_reg_on_setting = {
+	.reg_setting = cam0_reg_on_setting,
+	.size = 5,
+	.addr_type = CAMERA_SENSOR_I2C_TYPE_BYTE,
+	.data_type = CAMERA_SENSOR_I2C_TYPE_BYTE,
+	.delay = 0,
+};
+
+static struct cam_sensor_i2c_reg_setting wl_cam2_reg_on_setting = {
+	.reg_setting = cam2_reg_on_setting,
+	.size = 5,
+	.addr_type = CAMERA_SENSOR_I2C_TYPE_BYTE,
+	.data_type = CAMERA_SENSOR_I2C_TYPE_BYTE,
+	.delay = 0,
+};
+
+static struct cam_sensor_i2c_reg_setting wl_cam3_reg_on_setting = {
+	.reg_setting = cam3_reg_on_setting,
+	.size = 3,
+	.addr_type = CAMERA_SENSOR_I2C_TYPE_BYTE,
+	.data_type = CAMERA_SENSOR_I2C_TYPE_BYTE,
+	.delay = 0,
+};
+
+static struct cam_sensor_i2c_reg_setting wl_reg_off_setting = {
+	.reg_setting = cam_reg_off_setting,
+	.size = 1,
+	.addr_type = CAMERA_SENSOR_I2C_TYPE_BYTE,
+	.data_type = CAMERA_SENSOR_I2C_TYPE_BYTE,
+	.delay = 0,
+};
+#else
 static bool cam0_val_status = FALSE;
 static bool cam1_val_status = FALSE;
 static bool cam2_val_status = FALSE;
@@ -29,14 +127,6 @@ static cam_power_ctrl_t *power_ctrl = NULL;
 #define CAM1_LDO_ON_REG_VALUE         0x06
 #define CAM2_LDO_ON_REG_VALUE         0x20
 #define CAM_LDO_OFF_REG_VALUE         0x00
-
-/*
- * cam_sensor_i2c_reg_array
- * reg_addr
- * reg_data
- * delay
- * data_mask
-*/
 
 static struct cam_sensor_i2c_reg_array init_reg_setting[] = {
 	{0x01, 0x40,                  0x1, 0x0},
@@ -136,6 +226,23 @@ static struct cam_sensor_i2c_reg_setting wl_reg_off_setting = {
 	.data_type = CAMERA_SENSOR_I2C_TYPE_BYTE,
 	.delay = 0,
 };
+#endif
+
+#ifdef CONFIG_TARGET_PRODUCT_HALO
+static uint8_t get_active_ldo_mask(void)
+{
+	uint8_t mask = 0;
+	if (cam0_val_status)
+		mask |= CAM0_LDO_ON_REG_VALUE;
+	if (cam1_val_status)
+		mask |= CAM1_LDO_ON_REG_VALUE;
+	if (cam2_val_status)
+		mask |= CAM2_LDO_ON_REG_VALUE;
+	if (cam3_val_status)
+		mask |= CAM3_LDO_ON_REG_VALUE;
+	return mask;
+}
+#endif
 
 // Rear main camera
 static int set_cam0_vol_on(bool on)
@@ -149,6 +256,18 @@ static int set_cam0_vol_on(bool on)
 		return -EINVAL;
 	}
 
+#ifdef CONFIG_TARGET_PRODUCT_HALO
+	if (on) {
+		cam0_val_status = TRUE;
+		wl_cam0_reg_on_setting.reg_setting[4].reg_data = get_active_ldo_mask();
+		rc = camera_io_dev_write(&(io_master_info), &wl_cam0_reg_on_setting);
+		CAM_INFO(CAM_SENSOR, "set_cam0_vol_on reg_val: %x", wl_cam0_reg_on_setting.reg_setting[4].reg_data);
+	} else {
+		cam0_val_status = FALSE;
+		wl_reg_off_setting.reg_setting[0].reg_data = get_active_ldo_mask();
+		rc = camera_io_dev_write(&(io_master_info), &wl_reg_off_setting);
+	}
+#else
 	if (on)
 	{
 	    cam0_val_status = TRUE;
@@ -182,6 +301,7 @@ static int set_cam0_vol_on(bool on)
 
 		rc = camera_io_dev_write(&(io_master_info), &wl_reg_off_setting);
 	}
+#endif
 	camera_io_release(&io_master_info);
 
 	return rc;
@@ -199,6 +319,13 @@ static int set_cam1_vol_on(bool on)
 		return -EINVAL;
 	}
 
+#ifdef CONFIG_TARGET_PRODUCT_HALO
+	if (on) {
+		cam1_val_status = TRUE;
+	} else {
+		cam1_val_status = FALSE;
+	}
+#else
 	if (on)
 	{
 	    cam1_val_status = TRUE;
@@ -232,13 +359,14 @@ static int set_cam1_vol_on(bool on)
 
 		rc = camera_io_dev_write(&(io_master_info), &wl_reg_off_setting);
 	}
+#endif
 
 	camera_io_release(&io_master_info);
 
 	return rc;
 }
 
-// Macro camera
+// Aux / Macro camera
 static int set_cam2_vol_on(bool on)
 {
 	int rc = 0;
@@ -250,6 +378,18 @@ static int set_cam2_vol_on(bool on)
 		return -EINVAL;
 	}
 
+#ifdef CONFIG_TARGET_PRODUCT_HALO
+	if (on) {
+		cam2_val_status = TRUE;
+		wl_cam2_reg_on_setting.reg_setting[4].reg_data = get_active_ldo_mask();
+		rc = camera_io_dev_write(&(io_master_info), &wl_cam2_reg_on_setting);
+		CAM_INFO(CAM_SENSOR, "set_cam2_vol_on reg_val: %x", wl_cam2_reg_on_setting.reg_setting[4].reg_data);
+	} else {
+		cam2_val_status = FALSE;
+		wl_reg_off_setting.reg_setting[0].reg_data = get_active_ldo_mask();
+		rc = camera_io_dev_write(&(io_master_info), &wl_reg_off_setting);
+	}
+#else
 	if (on)
 	{
 	    cam2_val_status = TRUE;
@@ -283,12 +423,13 @@ static int set_cam2_vol_on(bool on)
 
 		rc = camera_io_dev_write(&(io_master_info), &wl_reg_off_setting);
 	}
+#endif
 
 	camera_io_release(&io_master_info);
 	return rc;
 }
 
-// 2st Rear main camera
+// Macro / 2nd Rear camera
 static int set_cam3_vol_on(bool on)
 {
 	int rc = 0;
@@ -300,6 +441,18 @@ static int set_cam3_vol_on(bool on)
 		return -EINVAL;
 	}
 
+#ifdef CONFIG_TARGET_PRODUCT_HALO
+	if (on) {
+		cam3_val_status = TRUE;
+		wl_cam3_reg_on_setting.reg_setting[2].reg_data = get_active_ldo_mask();
+		rc = camera_io_dev_write(&(io_master_info), &wl_cam3_reg_on_setting);
+		CAM_INFO(CAM_SENSOR, "set_cam3_vol_on reg_val: %x", wl_cam3_reg_on_setting.reg_setting[2].reg_data);
+	} else {
+		cam3_val_status = FALSE;
+		wl_reg_off_setting.reg_setting[0].reg_data = get_active_ldo_mask();
+		rc = camera_io_dev_write(&(io_master_info), &wl_reg_off_setting);
+	}
+#else
 	if (on)
 	{
 	    cam0_val_status = TRUE;
@@ -333,6 +486,7 @@ static int set_cam3_vol_on(bool on)
 
 		rc = camera_io_dev_write(&(io_master_info), &wl_reg_off_setting);
 	}
+#endif
 
 	camera_io_release(&io_master_info);
 	return rc;
@@ -349,13 +503,22 @@ int cam_power_ldo_control(uint16_t cam_cell_id, bool enable)
 			rc = set_cam0_vol_on(enable);
 			break;
 		case CAM_CELL_ID_1:
+#ifdef CONFIG_TARGET_PRODUCT_HALO
+			rc = set_cam1_vol_on(enable);
+#else
 			rc = set_cam2_vol_on(enable);
+#endif
 			break;
 		case CAM_CELL_ID_2:
+#ifdef CONFIG_TARGET_PRODUCT_HALO
+			rc = set_cam2_vol_on(enable);
+#else
 			rc = set_cam1_vol_on(enable);
+#endif
 			break;
 		case CAM_CELL_ID_3:
 			rc = set_cam3_vol_on(enable);
+			break;
 		default:
 			break;
 	}

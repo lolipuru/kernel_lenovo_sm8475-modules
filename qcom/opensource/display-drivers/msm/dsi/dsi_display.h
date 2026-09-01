@@ -842,14 +842,23 @@ int dsi_display_hbm_setup(struct dsi_display *display, int enable);
 int dsi_display_read_gamma(struct drm_connector *connector, void *display);
 int dsi_display_read_90hz_gamma(struct dsi_display *display);
 int dsi_display_read_120hz_gamma(struct dsi_display *display);
-int mipi_dsi_dcs_90hz_gamma_read1_enable(struct mipi_dsi_device *dsi);
-int mipi_dsi_dcs_90hz_gamma_read2_enable(struct mipi_dsi_device *dsi);
-int mipi_dsi_dcs_90hz_gamma_read_disable(struct mipi_dsi_device *dsi);
-int mipi_dsi_dcs_120hz_gamma_read1_enable(struct mipi_dsi_device *dsi);
-int mipi_dsi_dcs_120hz_gamma_read2_enable(struct mipi_dsi_device *dsi);
-int mipi_dsi_dcs_120hz_gamma_read_disable(struct mipi_dsi_device *dsi);
 int mipi_dsi_dcs_90hz_gamma_set(struct mipi_dsi_device *dsi);
 int mipi_dsi_dcs_120hz_gamma_set(struct mipi_dsi_device *dsi);
+#endif
+
+#ifdef CONFIG_TARGET_PRODUCT_HALO
+int dsi_display_read_dc(struct dsi_display_ctrl *ctrl, struct dsi_panel *panel,
+			u8 cmd_reg, u32 rx_len, u8 *rx_buf);
+int dsi_display_read_60hz_dc(struct dsi_display *display);
+int dsi_display_dc_creat_cmd(void);
+int dsi_display_dcs_60hz_dc_on(struct dsi_panel *panel);
+int dsi_display_dcs_60hz_dc_off(struct dsi_panel *panel);
+int dsi_display_get_90hz_gamma(struct dsi_display_ctrl *ctrl, struct dsi_panel *panel);
+int dsi_display_read_120hz_gamma_0xB8_44(struct dsi_display_ctrl *ctrl, struct dsi_panel *panel);
+int dsi_display_read_120hz_gamma_0xB9_237(struct dsi_display_ctrl *ctrl, struct dsi_panel *panel);
+int dsi_display_read_120hz_gamma_0xBA_63(struct dsi_display_ctrl *ctrl, struct dsi_panel *panel);
+int dsi_display_read_gamma_data(struct dsi_display_ctrl *ctrl, struct dsi_panel *panel,
+				u8 cmd_reg, u32 rx_len, u8 *rx_buf);
 #endif
 
 #endif /* _DSI_DISPLAY_H_ */

@@ -216,15 +216,22 @@ static const struct backlight_ops sde_backlight_device_ops = {
 };
 
 int dsi_panel_on_hbm = 0;
+#ifdef CONFIG_TARGET_PRODUCT_HALO
+int dsi_panel_dc_on = 0;
+#endif
 
 enum {
         HBM_FP_DIS              = 0,
         HBM_FP_EN               = 1,
         HBM_SUNNY_DIS           = 14,
         HBM_SUNNY_EN            = 15,
-        HBM_LOADING_DIS           = 16,
-        HBM_LOADING_EN            = 17,
-        HBM_FP_AUTO_EN  = 255
+        HBM_LOADING_DIS         = 16,
+        HBM_LOADING_EN          = 17,
+#ifdef CONFIG_TARGET_PRODUCT_HALO
+        HBM_DC_DIS              = 18,
+        HBM_DC_EN               = 19,
+#endif
+        HBM_FP_AUTO_EN          = 255
 };
 
 static int oem_backlight_device_set_hbm(struct backlight_device *bd)
@@ -264,6 +271,16 @@ static int oem_backlight_device_set_hbm(struct backlight_device *bd)
 		case HBM_LOADING_EN:
 			enable = 17;
 			break;
+#ifdef CONFIG_TARGET_PRODUCT_HALO
+		case HBM_DC_DIS:
+			dsi_panel_dc_on = 0;
+			enable = 18;
+			break;
+		case HBM_DC_EN:
+			dsi_panel_dc_on = 1;
+			enable = 19;
+			break;
+#endif
 		default:
 			SDE_ERROR("wrong setting for hbm: %d\n", brightness);
 			break;

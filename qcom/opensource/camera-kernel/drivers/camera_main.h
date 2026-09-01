@@ -42,6 +42,10 @@ extern struct i2c_driver cam_flash_i2c_driver;
 extern struct i2c_driver cam_ois_i2c_driver;
 extern struct i2c_driver cam_eeprom_i2c_driver;
 extern struct i2c_driver cam_sensor_i2c_driver;
+#if defined(CONFIG_TARGET_PRODUCT_HALO) || defined(CONFIG_TARGET_PRODUCT_DIABLO)
+extern int dw9781_init(void);
+extern void dw9781_exit(void);
+#endif
 #if IS_REACHABLE(CONFIG_LEDS_QPNP_FLASH_V2) || \
 	IS_REACHABLE(CONFIG_LEDS_QTI_FLASH)
 extern struct platform_driver cam_flash_platform_driver;
